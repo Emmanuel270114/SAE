@@ -15,6 +15,7 @@ class UsuarioCreate(UsuarioBase):
     model_config = {
         "populate_by_name": True,
     }
+    Id_Nivel: int
     
 class UsuarioResponse(UsuarioBase):
     Id_Usuario: int

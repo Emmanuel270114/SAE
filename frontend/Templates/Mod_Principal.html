@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mod_Principal</title>
+    <link rel="stylesheet" href="/static/css/mod_principal.css">
+</head>
+<body>
+    <div class="header-mod-principal">
+        <form action="/login" method="get">
+            <button type="submit" class="btn-cerrar-sesion">Cerrar Sesión</button>
+        </form>
+    </div>
+    <div class="bienvenida-box">
+        <span class="bienvenida-mod-principal">Bienvenido: {{ nombre_usuario }}</span>
+    </div>
+    <div class="principal-container">
+        <h2 class="titulo"> SAE <br> Módulo Principal</h2>
+        <div class="botones-menu">
+            <button id="Btn_Catalogos" class="btn-menu">Catálogos</button>
+            <button id="Btn_Matricula" class="btn-menu">Matrícula</button>
+            <button id="Btn_Relaciones" class="btn-menu">Relaciones</button>
+        </div>
+        <script>
+            document.getElementById('Btn_Catalogos').addEventListener('click', function() {
+                window.location.href = '/usuarios/';
+            });
+        </script>
+    </div>
+</body>
+</html>

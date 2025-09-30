@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&display=swap" rel="stylesheet">
     <!--<link rel="stylesheet" href="/static/css/style.css">-->
+    <link rel="stylesheet" href="/static/css/registro.css">
     <script>
     function sugerirUsuario() {
         const correo = document.getElementById('email').value.trim();
@@ -17,60 +18,9 @@
         document.getElementById('usuario').value = usuario;
     }
     </script>
+    <script src="/static/js/user_form.js"></script>
 </head>
 <body>
-    <style>
-        body {
-            font-family: Noto Sans, sans-serif;
-            background: #6e0343;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 400px;
-            margin: 60px auto;
-            background: #f9f9f9;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            padding: 32px 24px 24px 24px;
-        }
-        .input-form {
-            padding: 8px;
-            width: 80%;
-            margin-bottom: 10px;
-            box-sizing: border-box;
-        }
-        .link-volver {
-            display: block;
-            margin-top: 30px;
-        }
-        .status {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 4px;
-            font-weight: bold;
-        }
-        .status.ok {
-            background: #e6f4ea;
-            color: #155724;
-        }
-        .status.fail {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        button[type="submit"] {
-            background: #6e0343;
-            color: #fff;
-            border: none;
-            padding: 10px 24px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        button[type="submit"]:hover {
-            background: #4a022e;
-        }
-    </style>
     <div class="container">
         <h2>Registro de Nuevo Usuario</h2>
         <form id="registroForm">
@@ -94,9 +44,16 @@
             <br>
             <select id="id_rol" name="id_rol" required class="input-form" title="Selecciona el rol">
                 {% for rol in roles %}
-                <option value="{{ rol.Id_Rol }}">{{ rol.Nombre }}</option>
+                <option value="{{ rol.Id_Rol }}">{{ rol.Rol }}</option>
                 {% endfor %}
             </select>
+            <br>
+            <select id="id_nivel" name="id_nivel" required class="input-form" title="Selecciona el nivel">
+                {% for nivel in niveles %}
+                <option value="{{ nivel.Id_Nivel }}">{{ nivel.Nivel }}</option>
+                {% endfor %}
+            </select>
+            <input type="hidden" id="id_nivel_hidden" name="id_nivel_hidden" />
             <br>
             <button type="submit">Registrar</button>
         </form>
@@ -106,21 +63,6 @@
         <form action="/login" method="get">
             <button type="submit" class="btn-volver">&larr; Volver al Inicio</button>
         </form>
-        <style>
-        .btn-volver {
-            background: #6e0343;
-            color: #fff;
-            padding: 8px 20px;
-            border-radius: 4px;
-            border: none;
-            font-size: 15px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-        .btn-volver:hover {
-            background: #4a022e;
-        }
-        </style>
     </div>
 
     <script>

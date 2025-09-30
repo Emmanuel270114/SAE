@@ -8,7 +8,7 @@ class CatRoles(Base):
     __tablename__ = "Cat_Roles"
 
     Id_Rol: Mapped[int] = mapped_column(primary_key=True, index= True)
-    Nombre: Mapped[str] = mapped_column(String(50), nullable=False)
+    Rol: Mapped[str] = mapped_column(String(50), nullable=False)
     Descripcion: Mapped[str] = mapped_column(String(100), nullable=False)
     Fecha_Inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),  nullable=False)
     Fecha_Modificacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),  nullable=False)

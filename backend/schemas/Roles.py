@@ -1,11 +1,14 @@
 from pydantic import BaseModel
 
+
 class RolesBase(BaseModel):
-    Nombre:str
-    Descripcion: str        
+    Rol: str
+    Descripcion: str
+
 
 class RolesCreate(RolesBase):
     Id_Estatus: int
+
 
 class RolesResponse(RolesBase):
     Id_Rol: int
