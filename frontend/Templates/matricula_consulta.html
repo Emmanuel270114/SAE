@@ -1,0 +1,563 @@
+{% extends 'base.html' %}
+
+{% block title %}Captura de Matrícula (SP){% endblock %}
+
+{% block styles %}
+    <link rel="stylesheet" href="/static/css/components/header.css">
+    <link rel="stylesheet" href="/static/css/components/tables.css">
+    <link rel="stylesheet" href="/static/css/components/matricula_consulta.css">
+    <style>
+        /* Ocultar el submenu de categorias que viene de base.html en esta vista */
+        .submenu-categorias-box { display: none !important; }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header-usuarios">
+        <div class="bienvenido">Bienvenido: <strong>{{ nombre_usuario }}</strong>
+            {% if periodo_default_id %}
+                &nbsp;|&nbsp; Periodo: <strong>{% for p in periodos %}{% if p.Id_Periodo == periodo_default_id %}{{ p.Periodo }}{% endif %}{% endfor %}</strong>
+            {% endif %}
+            {% if unidad_actual %}
+                &nbsp;|&nbsp; Unidad Académica: <strong>{{ unidad_actual.Nombre }}</strong>
+            {% endif %}
+        </div>
+        <form action="/mod_principal" method="get">
+            <button type="submit" class="btn-volver">Regresar</button>
+        </form>
+    </div>
+
+    <h2>Captura de Matrícula Escolar (Stored Procedure)</h2>
+
+    {% if not programas %}
+    <div class="alert-info">
+        <strong>Información:</strong> No hay programas disponibles para su nivel y unidad académica.
+    </div>
+    {% else %}
+
+    <!-- Sección de Filtros con diseño horizontal -->
+    <div class="filtros-container">
+        <div class="filtros-row">
+            <!-- Periodo removido de los filtros: usamos el periodo por defecto en el header -->
+            <input type="hidden" id="periodo" name="periodo" value="{{ periodo_default_id }}">
+            
+            <div class="filtro-item">
+                <label for="programa">Programa Académico:</label>
+                <select id="programa" name="programa" required>
+                    {% for programa in programas %}
+                    <option value="{{ programa.Id_Programa }}" data-max-semestre="{{ programa.Id_Semestre }}">{{ programa.Nombre_Programa }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filtro-item">
+                <label for="semestre">Semestre:</label>
+                <select id="semestre" name="semestre" required>
+                    {% for semestre in semestres %}
+                    <option value="{{ semestre.Id_Semestre }}">{{ semestre.Semestre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filtro-item">
+                <label for="modalidad">Modalidad:</label>
+                <select id="modalidad" name="modalidad" required>
+                    {% for modalidad in modalidades %}
+                    <option value="{{ modalidad.Id_Modalidad }}">{{ modalidad.Modalidad }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Unidad Académica removida de los filtros: mostramos la UA en el header y la enviamos como hidden -->
+            {% if unidad_actual %}
+                <input type="hidden" id="unidad_academica" name="unidad_academica" value="{{ unidad_actual.Id_Unidad_Academica }}">
+            {% else %}
+                <input type="hidden" id="unidad_academica" name="unidad_academica" value="0">
+            {% endif %}
+        </div>
+        
+        <div class="periodo-info">
+            <strong>Periodo:</strong> 
+            {% for p in periodos %}
+                {% if p.Id_Periodo == periodo_default_id %}{{ p.Periodo }}{% endif %}
+            {% endfor %}
+            &nbsp;|&nbsp;
+            <strong>UA:</strong> {{ unidad_actual.Nombre if unidad_actual else 'No definida' }}
+        </div>
+    </div>
+
+    <!-- Sección de Captura con formato de tabla estructurada -->
+    <div class="captura-container">
+        {% for grupo_edad in grupos_edad %}
+        <div class="edad-section" data-index="{{ loop.index }}" data-count="{{ loop.length }}">
+            <div class="grupo-nav">
+                <span class="grupo-indicator"><strong>{{ loop.index }} de {{ loop.length }}</strong></span>
+                <div class="nav-buttons">
+                    <button type="button" class="btn-nav" onclick="mostrarAnterior()">◀ Anterior</button>
+                    <button type="button" class="btn-nav" onclick="mostrarSiguiente()">Siguiente ▶</button>
+                </div>
+            </div>
+            
+            <div class="tabla-matricula-container">
+                <div class="tabla-header">
+                    <h3>Edad: {{ grupo_edad.Grupo_Edad }}</h3>
+                </div>
+                
+                <table class="tabla-matricula" data-grupo-edad="{{ grupo_edad.Id_Grupo_Edad }}">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" class="col-tipo-ingreso">Tipo de Ingreso</th>
+                            <th rowspan="2" class="col-edad">Edad</th>
+                            <th rowspan="2" class="col-sexo">Sexo</th>
+                            <th colspan="3" class="col-matricula-header">Matrícula</th>
+                        </tr>
+                        <tr>
+                            <th class="col-matutino">M</th>
+                            <th class="col-vespertino">V</th>
+                            <th class="col-mixto">Mx</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Nuevo Ingreso y Reinscritos -->
+                        <tr class="tipo-ingreso-row">
+                            <td rowspan="2" class="tipo-ingreso-cell">
+                                <div class="tipo-ingreso-label">Nuevo Ingreso y Reinscritos</div>
+                            </td>
+                            <td rowspan="2" class="edad-cell">{{ grupo_edad.Grupo_Edad }}</td>
+                            <td class="sexo-cell masculino">M</td>
+                            <td class="input-cell"><input type="number" id="nuevo_hombres_mat_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="nuevo_hombres" data-col="mat" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                            <td class="input-cell"><input type="number" id="nuevo_hombres_vesp_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="nuevo_hombres" data-col="vesp" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                            <td class="input-cell"><input type="number" id="nuevo_hombres_mixto_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="nuevo_hombres" data-col="mixto" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                        </tr>
+                        <tr>
+                            <td class="sexo-cell femenino">F</td>
+                            <td class="input-cell"><input type="number" id="nuevo_mujeres_mat_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="nuevo_mujeres" data-col="mat" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                            <td class="input-cell"><input type="number" id="nuevo_mujeres_vesp_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="nuevo_mujeres" data-col="vesp" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                            <td class="input-cell"><input type="number" id="nuevo_mujeres_mixto_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="nuevo_mujeres" data-col="mixto" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                        </tr>
+                        
+                        <!-- Repetidores -->
+                        <tr class="tipo-ingreso-row">
+                            <td rowspan="2" class="tipo-ingreso-cell">
+                                <div class="tipo-ingreso-label">Repetidores</div>
+                            </td>
+                            <td rowspan="2" class="edad-cell">{{ grupo_edad.Grupo_Edad }}</td>
+                            <td class="sexo-cell masculino">M</td>
+                            <td class="input-cell"><input type="number" id="rep_hombres_mat_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="rep_hombres" data-col="mat" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                            <td class="input-cell"><input type="number" id="rep_hombres_vesp_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="rep_hombres" data-col="vesp" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                            <td class="input-cell"><input type="number" id="rep_hombres_mixto_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="rep_hombres" data-col="mixto" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                        </tr>
+                        <tr>
+                            <td class="sexo-cell femenino">F</td>
+                            <td class="input-cell"><input type="number" id="rep_mujeres_mat_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="rep_mujeres" data-col="mat" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                            <td class="input-cell"><input type="number" id="rep_mujeres_vesp_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="rep_mujeres" data-col="vesp" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                            <td class="input-cell"><input type="number" id="rep_mujeres_mixto_{{ grupo_edad.Id_Grupo_Edad }}" value="0" min="0" class="input-matricula" data-row="rep_mujeres" data-col="mixto" data-grupo="{{ grupo_edad.Id_Grupo_Edad }}"></td>
+                        </tr>
+                        
+                        <!-- Totales -->
+                        <tr class="totales-row">
+                            <td colspan="3" class="totales-label">TOTALES</td>
+                            <td class="total-cell"><span id="total_mat_{{ grupo_edad.Id_Grupo_Edad }}">0</span></td>
+                            <td class="total-cell"><span id="total_vesp_{{ grupo_edad.Id_Grupo_Edad }}">0</span></td>
+                            <td class="total-cell"><span id="total_mixto_{{ grupo_edad.Id_Grupo_Edad }}">0</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+        
+        {% if not grupos_edad %}
+        <div class="alert-info">
+            <strong>Información:</strong> No hay grupos de edad disponibles para su nivel y unidad académica.
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="actions-section">
+        <button type="button" class="btn-primary" onclick="guardarMatricula()">
+            💾 Guardar Matrícula
+        </button>
+        <button type="button" class="btn-secondary" onclick="limpiarFormulario()">
+            🧹 Limpiar Formulario
+        </button>
+        <button type="button" class="btn-secondary" onclick="window.location.href='/mod_principal'">
+            ↩️ Volver al Menú
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+{% block scripts %}
+<script>
+    // Función para cargar datos existentes cuando cambien los filtros usando SP
+    async function cargarDatosExistentes() {
+        const periodo = document.getElementById('periodo').value;
+        const programa = document.getElementById('programa').value;
+        const modalidad = document.getElementById('modalidad').value;
+        const semestre = document.getElementById('semestre').value;
+        
+        if (!periodo || !programa || !modalidad || !semestre) {
+            return; // No cargar si faltan datos
+        }
+        
+        try {
+            const response = await fetch('/matricula/obtener_datos_existentes_sp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    periodo: periodo,
+                    programa: programa,
+                    modalidad: modalidad,
+                    semestre: semestre
+                })
+            });
+            
+            const resultado = await response.json();
+            
+            if (resultado.error) {
+                console.error('Error al cargar datos existentes:', resultado.error);
+                return;
+            }
+            
+            // Limpiar formulario primero
+            const inputs = document.querySelectorAll('input.input-matricula:not([readonly])');
+            inputs.forEach(input => input.value = '0');
+            
+            // Cargar datos existentes
+            const datos = resultado.datos || {};
+            for (const [grupoEdadId, datosGrupo] of Object.entries(datos)) {
+                for (const [campo, valor] of Object.entries(datosGrupo)) {
+                    const input = document.getElementById(`${campo}_${grupoEdadId}`);
+                    if (input) {
+                        input.value = valor;
+                    }
+                }
+            }
+            
+            // Recalcular totales
+            calcularTotales();
+            
+        } catch (error) {
+            console.error('Error al cargar datos existentes:', error);
+        }
+    }
+
+    function calcularTotales() {
+        // Obtener todos los grupos de edad
+        const tablas = document.querySelectorAll('table.tabla-matricula[data-grupo-edad]');
+
+        tablas.forEach(tabla => {
+            const grupoEdad = tabla.getAttribute('data-grupo-edad');
+
+            // Filas válidas
+            const filas = ['nuevo_hombres', 'nuevo_mujeres', 'rep_hombres', 'rep_mujeres'];
+            const columnas = ['mat', 'vesp', 'mixto'];
+
+            // Calcular totales por fila (horizontal)
+            filas.forEach(fila => {
+                const matInput = tabla.querySelector(`input[data-row="${fila}"][data-col="mat"]`);
+                const vespInput = tabla.querySelector(`input[data-row="${fila}"][data-col="vesp"]`);
+                const mixtoInput = tabla.querySelector(`input[data-row="${fila}"][data-col="mixto"]`);
+
+                const mat = parseInt(matInput?.value) || 0;
+                const vesp = parseInt(vespInput?.value) || 0;
+                const mixto = parseInt(mixtoInput?.value) || 0;
+                const totalFila = mat + vesp + mixto;
+
+                const totalFilaEl = tabla.querySelector(`#total_${fila}_${grupoEdad}`);
+                if (totalFilaEl) totalFilaEl.textContent = totalFila;
+            });
+
+            // Calcular totales por columna (vertical)
+            columnas.forEach(columna => {
+                let totalColumna = 0;
+                const inputsCol = tabla.querySelectorAll(`input[data-col="${columna}"]`);
+                inputsCol.forEach(inp => {
+                    totalColumna += parseInt(inp.value) || 0;
+                });
+                const totalColEl = tabla.querySelector(`#total_${columna}_${grupoEdad}`);
+                if (totalColEl) totalColEl.textContent = totalColumna;
+            });
+
+            // Calcular total general
+            let totalGeneral = 0;
+            filas.forEach(fila => {
+                columnas.forEach(columna => {
+                    const input = tabla.querySelector(`input[data-row="${fila}"][data-col="${columna}"]`);
+                    totalGeneral += parseInt(input?.value) || 0;
+                });
+            });
+            const totalGeneralEl = tabla.querySelector(`#total_general_${grupoEdad}`);
+            if (totalGeneralEl) totalGeneralEl.textContent = totalGeneral;
+        });
+    }
+
+    function guardarMatricula() {
+        // Validar que al menos un campo tenga datos
+        const inputs = document.querySelectorAll('input.input-matricula');
+        let hasData = false;
+        
+        for (let input of inputs) {
+            if (parseInt(input.value) > 0) {
+                hasData = true;
+                break;
+            }
+        }
+        
+        if (!hasData) {
+            alert('⚠️ Por favor, ingrese al menos un valor mayor a 0 antes de guardar.');
+            return;
+        }
+
+        // Validar que los filtros estén seleccionados
+        const periodo = document.getElementById('periodo').value;
+        const programa = document.getElementById('programa').value;
+        const semestre = document.getElementById('semestre').value;
+        const modalidad = document.getElementById('modalidad').value;
+        
+        if (!periodo || !programa || !semestre || !modalidad) {
+            alert('⚠️ Por favor, complete todos los filtros antes de guardar.');
+            return;
+        }
+
+        // Recopilar todos los datos del formulario por grupo de edad
+        const data = {
+            periodo: periodo,
+            programa: programa,
+            semestre: semestre,
+            modalidad: modalidad,
+            datos_por_grupo: {}
+        };
+
+        // Obtener datos de cada grupo de edad
+        const tablas = document.querySelectorAll('table.tabla-matricula[data-grupo-edad]');
+        tablas.forEach(tabla => {
+            const grupoEdad = tabla.getAttribute('data-grupo-edad');
+            data.datos_por_grupo[grupoEdad] = {
+                nuevo_hombres_mat: document.getElementById('nuevo_hombres_mat_' + grupoEdad).value,
+                nuevo_hombres_vesp: document.getElementById('nuevo_hombres_vesp_' + grupoEdad).value,
+                nuevo_hombres_mixto: document.getElementById('nuevo_hombres_mixto_' + grupoEdad).value,
+                nuevo_mujeres_mat: document.getElementById('nuevo_mujeres_mat_' + grupoEdad).value,
+                nuevo_mujeres_vesp: document.getElementById('nuevo_mujeres_vesp_' + grupoEdad).value,
+                nuevo_mujeres_mixto: document.getElementById('nuevo_mujeres_mixto_' + grupoEdad).value,
+                rep_hombres_mat: document.getElementById('rep_hombres_mat_' + grupoEdad).value,
+                rep_hombres_vesp: document.getElementById('rep_hombres_vesp_' + grupoEdad).value,
+                rep_hombres_mixto: document.getElementById('rep_hombres_mixto_' + grupoEdad).value,
+                rep_mujeres_mat: document.getElementById('rep_mujeres_mat_' + grupoEdad).value,
+                rep_mujeres_vesp: document.getElementById('rep_mujeres_vesp_' + grupoEdad).value,
+                rep_mujeres_mixto: document.getElementById('rep_mujeres_mixto_' + grupoEdad).value,
+            };
+        });
+
+        // Mostrar indicador de carga
+        const saveBtn = document.querySelector('.btn-primary');
+        const originalText = saveBtn.textContent;
+        saveBtn.textContent = '⏳ Guardando...';
+        saveBtn.disabled = true;
+
+        // Enviar datos al backend
+        fetch('/matricula/guardar_captura', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.mensaje) {
+                alert('✅ ' + data.mensaje);
+                limpiarFormulario();
+            } else {
+                alert('❌ Error: ' + (data.error || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ Error al procesar la solicitud. Por favor, intente nuevamente.');
+        })
+        .finally(() => {
+            // Restaurar botón
+            saveBtn.textContent = originalText;
+            saveBtn.disabled = false;
+        });
+    }
+
+    function limpiarFormulario() {
+        const inputs = document.querySelectorAll('input.input-matricula');
+        inputs.forEach(input => input.value = '0');
+        calcularTotales(); // Recalcular totales después de limpiar
+    }
+
+    // Agregar eventos a los inputs para cálculos automáticos
+    document.addEventListener('DOMContentLoaded', function() {
+        // Obtener mapeo de semestres desde backend y luego reconstruir select
+        window._semestres_map = {};
+        async function fetchSemestresMap() {
+            try {
+                const resp = await fetch('/matricula/semestres_map');
+                const json = await resp.json();
+                if (!json || json.error) {
+                    console.warn('No se pudo obtener semestres_map:', json && json.error);
+                    return;
+                }
+                window._semestres_map = json;
+                // Después de obtener el map, reconstruir semestres y actualizar el select
+                rebuildSemestres();
+            } catch (err) {
+                console.error('Error al obtener semestres_map:', err);
+            }
+        }
+        
+        // Función para reconstruir select de semestres según programa
+        function rebuildSemestres() {
+            const programaSel = document.getElementById('programa');
+            const semestreSel = document.getElementById('semestre');
+            if (!programaSel || !semestreSel) return;
+            const opt = programaSel.selectedOptions[0];
+            const maxSem = parseInt(opt?.getAttribute('data-max-semestre')) || 1;
+            // Limpiar
+            semestreSel.innerHTML = '';
+            // Construir lista de semestres tomando los primeros maxSem ordenados por Id
+            const semIds = Object.keys(window._semestres_map).map(x => parseInt(x)).sort((a,b)=>a-b);
+            for (let i = 0; i < Math.min(maxSem, semIds.length); i++) {
+                const semId = semIds[i];
+                const o = document.createElement('option');
+                o.value = semId; // usar Id_Semestre real
+                o.textContent = window._semestres_map[String(semId)] || String(semId);
+                semestreSel.appendChild(o);
+            }
+        }
+        
+        // Ejecutar al cambiar programa
+        const programaEl = document.getElementById('programa');
+        if (programaEl) {
+            programaEl.addEventListener('change', rebuildSemestres);
+        }
+        
+        const inputs = document.querySelectorAll('input.input-matricula');
+        inputs.forEach(input => {
+            input.addEventListener('input', calcularTotales);
+            input.addEventListener('change', calcularTotales);
+        });
+        
+        // Agregar eventos a los filtros para cargar datos existentes
+        const filtros = ['periodo', 'programa', 'modalidad', 'semestre'];
+        filtros.forEach(filtroId => {
+            const elemento = document.getElementById(filtroId);
+            if (elemento) {
+                elemento.addEventListener('change', cargarDatosExistentes);
+            }
+        });
+
+        // Obtener mapping de semestres y luego reconstruir semestres con el programa por defecto
+        fetchSemestresMap();
+        
+        // Preparar navegación por grupos
+        window._grupos = Array.from(document.querySelectorAll('.edad-section'));
+        window._grupoIndex = 0;
+        window._datosTemporales = {}; // Guardar valores por grupo mientras navegamos
+
+        function mostrarGrupo(index) {
+            window._grupos.forEach((el, i) => {
+                if (i === index) {
+                    el.classList.remove('hidden-group');
+                } else {
+                    el.classList.add('hidden-group');
+                }
+            });
+
+            // Restaurar valores guardados para este grupo si existen
+            const grupoVisibleEl = window._grupos[index];
+            const grupoId = grupoVisibleEl.querySelector('table.tabla-matricula').getAttribute('data-grupo-edad');
+            const valores = window._datosTemporales[grupoId] || {};
+            const inputsLocal = grupoVisibleEl.querySelectorAll('input.input-matricula');
+            inputsLocal.forEach(input => {
+                const id = input.id;
+                if (valores.hasOwnProperty(id)) {
+                    input.value = valores[id];
+                }
+            });
+
+            // Recalcular totales para el grupo mostrado
+            calcularTotales();
+
+            // Actualizar indicador "X de Y" dentro del grupo mostrado
+            const indicador = grupoVisibleEl.querySelector('.grupo-indicator');
+            if (indicador) {
+                indicador.innerHTML = `<strong>${index + 1} de ${window._grupos.length}</strong>`;
+            }
+
+            // Actualizar estado de botones
+            const prevBtns = document.querySelectorAll('button[onclick="mostrarAnterior()"]');
+            const nextBtns = document.querySelectorAll('button[onclick="mostrarSiguiente()"]');
+            if (index <= 0) {
+                prevBtns.forEach(b => b.disabled = true);
+            } else {
+                prevBtns.forEach(b => b.disabled = false);
+            }
+            if (index >= window._grupos.length - 1) {
+                nextBtns.forEach(b => b.disabled = true);
+            } else {
+                nextBtns.forEach(b => b.disabled = false);
+            }
+        }
+
+        function guardarValoresTemporalesParaIndice(index) {
+            const elIndex = window._grupos[index];
+            const gid = elIndex.querySelector('table.tabla-matricula').getAttribute('data-grupo-edad');
+            window._datosTemporales[gid] = {};
+            elIndex.querySelectorAll('input.input-matricula').forEach(inp => {
+                window._datosTemporales[gid][inp.id] = inp.value;
+            });
+        }
+
+        window.mostrarSiguiente = function() {
+            // Guardar estado actual
+            guardarValoresTemporalesParaIndice(window._grupoIndex);
+
+            if (window._grupoIndex < window._grupos.length - 1) {
+                window._grupoIndex += 1;
+                mostrarGrupo(window._grupoIndex);
+            }
+        };
+
+        window.mostrarAnterior = function() {
+            guardarValoresTemporalesParaIndice(window._grupoIndex);
+
+            if (window._grupoIndex > 0) {
+                window._grupoIndex -= 1;
+                mostrarGrupo(window._grupoIndex);
+            }
+        };
+
+        // Agregar listeners para que los inputs actualicen valores temporales
+        window._grupos.forEach((g, idx) => {
+            g.querySelectorAll('input.input-matricula').forEach(inp => {
+                inp.addEventListener('change', () => {
+                    // Guardar valor inmediatamente en temporales
+                    const gid = g.querySelector('table.tabla-matricula').getAttribute('data-grupo-edad');
+                    if (!window._datosTemporales[gid]) window._datosTemporales[gid] = {};
+                    window._datosTemporales[gid][inp.id] = inp.value;
+                    // Recalcular totales para la tabla visible
+                    calcularTotales();
+                });
+            });
+        });
+
+        // Mostrar solo el primer grupo inicialmente
+        if (window._grupos.length > 0) {
+            mostrarGrupo(0);
+        }
+
+        // Calcular totales iniciales
+        calcularTotales();
+    });
+</script>
+{% endblock %}
+
+{% endblock %}

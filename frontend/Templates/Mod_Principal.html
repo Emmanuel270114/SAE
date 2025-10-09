@@ -19,12 +19,19 @@
         <h2 class="titulo"> SAE <br> Módulo Principal</h2>
         <div class="botones-menu">
             <button id="Btn_Catalogos" class="btn-menu">Catálogos</button>
-            <button id="Btn_Matricula" class="btn-menu">Matrícula</button>
-            <button id="Btn_Relaciones" class="btn-menu">Relaciones</button>
+            <button id="Btn_Matricula" class="btn-menu">Captura</button>
+            <button id="Btn_Matricula_SP" class="btn-menu">Captura SP</button>
         </div>
         <script>
             document.getElementById('Btn_Catalogos').addEventListener('click', function() {
                 window.location.href = '/usuarios/';
+            });
+            
+            document.getElementById('Btn_Matricula').addEventListener('click', function() {
+                window.location.href = '/matricula/captura_matricula';
+            });
+            document.getElementById('Btn_Matricula_SP').addEventListener('click', function() {
+                window.location.href = '/matricula/consulta';
             });
         </script>
     </div>

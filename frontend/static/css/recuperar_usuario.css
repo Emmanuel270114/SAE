@@ -28,10 +28,8 @@ label {
   margin-bottom: 0.5rem;
   font-size: 1rem;
   color: #2d3a4a;
-  text-align: left;
 }
 .input-form {
-  width: 100%;
   padding: 0.7rem 0.9rem;
   border: 1px solid #dbe2ef;
   border-radius: 6px;
@@ -41,12 +39,12 @@ label {
   transition: border-color 0.2s;
 }
 .input-form:focus {
-  border-color: #3f72af;
+  border-color: #6e0343;
   outline: none;
   background: #fff;
 }
 .btn-primary {
-  background: #3f72af;
+  background: #6e0343;
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -83,3 +81,4 @@ label {
 }
 .ok { color: #219150; font-weight: 700; }
 .info { color: #2d3a4a; }
+.error { color: #d32f2f; font-weight: 700; }

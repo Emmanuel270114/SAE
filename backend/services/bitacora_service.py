@@ -23,3 +23,18 @@ def registrar_bitacora(
     db.commit()
     db.refresh(bitacora)
     return bitacora
+
+def log_accion(db: Session, id_usuario: int, accion: str, host: str):
+    """Función simplificada para registrar acciones de seguridad"""
+    try:
+        registrar_bitacora(
+            db=db,
+            id_usuario=id_usuario,
+            id_modulo=1,  # Módulo de seguridad/autenticación
+            id_periodo=1,  # Periodo por defecto
+            accion=accion,
+            host=host  # Host de donde se realizó la acción
+        )
+    except Exception as e:
+        print(f"Error registrando en bitácora: {e}")
+        # No lanzar excepción para no interrumpir el flujo principal

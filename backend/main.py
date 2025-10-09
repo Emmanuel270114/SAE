@@ -6,6 +6,8 @@ from backend.api import usuarios
 from backend.api import mod_principal
 from backend.api import unidad_academica
 from backend.api import programas
+from backend.api import matricula
+from backend.api import matricula_sp
 from backend.api import recuperacion
 from backend.core.templates import static
 
@@ -21,6 +23,8 @@ app.include_router(usuarios.router , prefix="/usuarios")
 app.include_router(mod_principal.router , prefix="/mod_principal")
 app.include_router(unidad_academica.router , prefix="/unidad-academica")
 app.include_router(programas.router , prefix="/programas")
+app.include_router(matricula.router , prefix="/matricula")
+app.include_router(matricula_sp.router , prefix="/matricula")
 app.include_router(recuperacion.router)
 
 @app.get("/", response_class=HTMLResponse)

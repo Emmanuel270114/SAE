@@ -30,23 +30,55 @@ async def login(
         if validacion_usuario(db, usuario_email, password):
             exito = True
             from backend.crud.Usuario import read_user_by_email, read_user_by_username
+            from backend.database.models.CatRoles import CatRoles
+            from backend.database.models.CatNivel import CatNivel
+            
             user = read_user_by_email(db, usuario_email)
             if user is None:
                 user = read_user_by_username(db, usuario_email)
+            
             id_unidad = user.Id_Unidad_Academica if user else 1
             id_rol = user.Id_Rol if user else 2
+            id_nivel = user.Id_Nivel if user else 1
             id_usuario = user.Id_Usuario if user else None
-            # Redirigir a la vista principal después de login
-            response = RedirectResponse(url="/mod_principal", status_code=303)
+            
+            # Obtener nombres del rol y nivel
+            rol = db.query(CatRoles).filter(CatRoles.Id_Rol == id_rol).first()
+            nivel = db.query(CatNivel).filter(CatNivel.Id_Nivel == id_nivel).first()
+            
+            nombre_rol = rol.Rol if rol else "Usuario"
+            nombre_nivel = nivel.Nivel if nivel else "No definido"
+            
+            print(f"DEBUG LOGIN: Usuario {user.Usuario}")
+            print(f"DEBUG LOGIN: ID Rol: {id_rol}, Nombre Rol: {nombre_rol}")
+            print(f"DEBUG LOGIN: ID Nivel: {id_nivel}, Nombre Nivel: {nombre_nivel}")
+            print(f"DEBUG LOGIN: ID Unidad Académica: {id_unidad}")
+            
+            # Verificar si tiene contraseña temporal usando bitácora
+            from backend.services.usuario_service import has_temporary_password
+            temp_password_detected = has_temporary_password(db, user.Id_Usuario)
+            print(f"DEBUG: Usuario {user.Usuario} - Contraseña temporal detectada: {temp_password_detected}")
+            
+            if temp_password_detected:
+                # Si tiene contraseña temporal, redirigir a cambiar_password
+                response = RedirectResponse(url="/recuperacion/cambiar", status_code=303)
+                print(f"DEBUG: Redirigiendo a /recuperacion/cambiar")
+            else:
+                # Redirigir a la vista principal después de login
+                response = RedirectResponse(url="/mod_principal", status_code=303)
+                print(f"DEBUG: Redirigiendo a /mod_principal")
+            
+            # Establecer todas las cookies con la información del usuario
             response.set_cookie(key="id_rol", value=str(id_rol), httponly=True)
+            response.set_cookie(key="nombre_rol", value=nombre_rol, httponly=True)
+            response.set_cookie(key="id_nivel", value=str(id_nivel), httponly=True)
+            response.set_cookie(key="nombre_nivel", value=nombre_nivel, httponly=True)
             if id_usuario:
                 response.set_cookie(key="id_usuario", value=str(id_usuario), httponly=True)
             response.set_cookie(key="id_unidad_academica", value=str(id_unidad), httponly=True)
             response.set_cookie(key="nombre_usuario", value=user.Nombre or "", httponly=True)
             response.set_cookie(key="apellidoP_usuario", value=user.Paterno or "", httponly=True)
             response.set_cookie(key="apellidoM_usuario", value=user.Materno or "", httponly=True)
-            if hasattr(user, 'Id_Nivel') and user.Id_Nivel is not None:
-                response.set_cookie(key="id_nivel", value=str(user.Id_Nivel), httponly=True)
             return response
         else:
             mensaje = "Usuario o contraseña incorrectos."

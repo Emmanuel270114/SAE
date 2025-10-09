@@ -30,11 +30,23 @@ async def recuperar_password_view(request: Request):
 
 @router.post("/password", response_class=JSONResponse)
 async def recuperar_password(username: str = Form(...), email: str = Form(...), request: Request = None, db: Session = Depends(get_db)):
-    ok = reset_password(db, username, email)
+    # Pasar el objeto request directamente a la función
+    ok = reset_password(db, username, email, request)
     if ok:
-        # bitácora opcional sin usuario logueado -> id_usuario = 0
+        # bitácora adicional opcional para el endpoint
         try:
-            registrar_bitacora(db, id_usuario=0, id_modulo=1, id_periodo=9, accion=f"Reset password usuario {username}", host=request.client.host if request and request.client else "")
+            # Capturar hostname de la misma forma
+            import socket
+            if request:
+                xff = request.headers.get("x-forwarded-for") or ""
+                client_ip = (xff.split(",")[0].strip() if xff else (request.client.host if request.client else ""))
+                try:
+                    host = socket.gethostbyaddr(client_ip)[0] if client_ip else ""
+                except Exception:
+                    host = client_ip
+            else:
+                host = "sistema"
+            registrar_bitacora(db, id_usuario=0, id_modulo=1, id_periodo=9, accion=f"Reset password solicitado para usuario {username}", host=host)
         except Exception:
             pass
         return {"mensaje": "Si los datos son correctos, se envió una nueva contraseña al correo registrado."}
@@ -62,10 +74,23 @@ async def cambiar_password(
         id_usuario_int = 0
     if id_usuario_int <= 0:
         return JSONResponse(status_code=401, content={"mensaje": "Sesión no válida."})
-    ok = change_password(db, id_usuario_int, current_password, new_password)
+    
+    # Pasar el objeto request directamente a la función
+    ok = change_password(db, id_usuario_int, current_password, new_password, request)
     if ok:
         try:
-            registrar_bitacora(db, id_usuario=id_usuario_int, id_modulo=1, id_periodo=9, accion="Cambio de contraseña", host=request.client.host if request and request.client else "")
+            # Capturar hostname de la misma forma
+            import socket
+            if request:
+                xff = request.headers.get("x-forwarded-for") or ""
+                client_ip = (xff.split(",")[0].strip() if xff else (request.client.host if request.client else ""))
+                try:
+                    host = socket.gethostbyaddr(client_ip)[0] if client_ip else ""
+                except Exception:
+                    host = client_ip
+            else:
+                host = "sistema"
+            registrar_bitacora(db, id_usuario=id_usuario_int, id_modulo=1, id_periodo=9, accion="Cambio de contraseña exitoso", host=host)
         except Exception:
             pass
         return {"mensaje": "Contraseña actualizada."}

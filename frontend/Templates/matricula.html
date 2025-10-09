@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block title %}Matrícula - Listado{% endblock %}
+
+{% block styles %}
+    <link rel="stylesheet" href="/static/css/components/header.css">
+    <link rel="stylesheet" href="/static/css/components/tables.css">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header-usuarios">
+        <div class="bienvenido">Bienvenido: {{ nombre_usuario }}</div>
+        <form action="/mod_principal" method="get">
+            <button type="submit" class="btn-volver">Regresar</button>
+        </form>
+    </div>
+
+    <h2>Listado básico de Matrícula</h2>
+    <p>Se muestran hasta {{ limit }} registros más recientes.</p>
+
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Periodo</th>
+                    <th>Unidad Académica</th>
+                    <th>Programa</th>
+                    <th>Rama</th>
+                    <th>Nivel</th>
+                    <th>Modalidad</th>
+                    <th>Turno</th>
+                    <th>Semestre</th>
+                    <th>Grupo Edad</th>
+                    <th>Tipo Ingreso</th>
+                    <th>Sexo</th>
+                    <th>Matrícula</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.Periodo }}</td>
+                    <td>{{ item.Unidad_Academica }}</td>
+                    <td>{{ item.Programa }}</td>
+                    <td>{{ item.Rama }}</td>
+                    <td>{{ item.Nivel }}</td>
+                    <td>{{ item.Modalidad }}</td>
+                    <td>{{ item.Turno }}</td>
+                    <td>{{ item.Semestre }}</td>
+                    <td>{{ item.Grupo_Edad }}</td>
+                    <td>{{ item.Tipo_Ingreso }}</td>
+                    <td>{{ item.Sexo }}</td>
+                    <td>{{ item.Matricula }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.Id_Periodo }}</td>
+                        <td>{{ item.Id_Unidad_Academica }}</td>
+                        <td>{{ m.Id_Programa }}</td>
+                        <td>{{ m.Id_Rama }}</td>
+                        <td>{{ m.Id_Nivel }}</td>
+                        <td>{{ m.Id_Modalidad }}</td>
+                        <td>{{ m.Id_Turno }}</td>
+                        <td>{{ m.Id_Semestre }}</td>
+                        <td>{{ m.Id_Grupo_Edad }}</td>
+                        <td>{{ m.Id_Tipo_Ingreso }}</td>
+                        <td>{{ m.Id_Sexo }}</td>
+                        <td>{{ m.Matricula }}</td>
+                        <!-- Más columnas aquí -->
+                    </tr>
+                    {% endfor %}    
+
+                    <td colspan="13" style="text-align:center">No hay registros de matrícula.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

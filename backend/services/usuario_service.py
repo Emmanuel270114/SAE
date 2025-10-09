@@ -1,5 +1,6 @@
 from backend.crud.Usuario import create_usuario, read_user_by_username, read_user_by_email, read_password_by_user
 from backend.crud.Usuario import read_password_by_email
+from backend.services.bitacora_service import registrar_bitacora
 from backend.database.models.Usuario import Usuario
 from backend.utils.security import hash_password
 from backend.utils.security import generate_random_password
@@ -22,7 +23,7 @@ def get_username_by_email(db: Session, email: str) -> str | None:
     return user.Usuario if user else None
 
 # Funciones para manejo de contraseñas
-def reset_password(db: Session, username: str, email: str) -> bool:
+def reset_password(db: Session, username: str, email: str, request = None) -> bool:
     """Genera una contraseña temporal y la envía al correo si username & email coinciden.
     Respuesta siempre booleana sin detallar causa para no filtrar existencia.
     """
@@ -36,6 +37,41 @@ def reset_password(db: Session, username: str, email: str) -> bool:
         from datetime import datetime, timezone
         user.Fecha_Modificacion = datetime.now(timezone.utc)
         db.commit()
+        
+        # Registrar en bitácora que se generó contraseña temporal
+        try:
+            from backend.services.bitacora_service import registrar_bitacora
+            import socket
+            
+            id_modulo = 1  # Módulo de seguridad
+            id_periodo = 9  # Periodo por defecto
+            accion = f"Nueva contraseña temporal generada para {user.Usuario}"
+
+            # Obtener el hostname del cliente (reverse DNS). Si falla, usar IP.
+            if request:
+                xff = request.headers.get("x-forwarded-for") or ""
+                client_ip = (xff.split(",")[0].strip() if xff else (request.client.host if request.client else ""))
+                try:
+                    # Obtener el hostname a partir de la IP
+                    host = socket.gethostbyaddr(client_ip)[0] if client_ip else ""
+                except Exception:
+                    host = client_ip
+            else:
+                host = "sistema"
+            
+            # Registrar en la bitácora
+            registrar_bitacora(
+                db=db,
+                id_usuario=user.Id_Usuario,
+                id_modulo=id_modulo,
+                id_periodo=id_periodo,
+                accion=accion,
+                host=host
+            )
+            print(f"✅ Bitácora registrada: Nueva contraseña temporal para usuario {user.Id_Usuario} desde host {host}")
+        except Exception as bitacora_error:
+            print(f"❌ Error al registrar en bitácora: {bitacora_error}")
+            # No fallar el registro por error en bitácora
         # Enviar correo
         cuerpo = f"""
         <p>Hola {user.Nombre or ''},</p>
@@ -55,7 +91,7 @@ def reset_password(db: Session, username: str, email: str) -> bool:
         db.rollback()
         return False
 
-def change_password(db: Session, user_id: int, current_password: str, new_password: str) -> bool:
+def change_password(db: Session, user_id: int, current_password: str, new_password: str, request = None) -> bool:
     user = db.query(Usuario).filter(Usuario.Id_Usuario == user_id).first()
     if not user:
         return False
@@ -67,6 +103,42 @@ def change_password(db: Session, user_id: int, current_password: str, new_passwo
     from datetime import datetime, timezone
     user.Fecha_Modificacion = datetime.now(timezone.utc)
     db.commit()
+    
+    # Registrar en bitácora que cambió a contraseña personal
+    try:
+        from backend.services.bitacora_service import registrar_bitacora
+        import socket
+        
+        id_modulo = 1  # Módulo de seguridad
+        id_periodo = 9  # Periodo por defecto
+        accion = f"Usuario cambió de contraseña temporal a personal"
+
+        # Obtener el hostname del cliente (reverse DNS). Si falla, usar IP.
+        if request:
+            xff = request.headers.get("x-forwarded-for") or ""
+            client_ip = (xff.split(",")[0].strip() if xff else (request.client.host if request.client else ""))
+            try:
+                # Obtener el hostname a partir de la IP
+                host = socket.gethostbyaddr(client_ip)[0] if client_ip else ""
+            except Exception:
+                host = client_ip
+        else:
+            host = "sistema"
+        
+        # Registrar en la bitácora
+        registrar_bitacora(
+            db=db,
+            id_usuario=user_id,
+            id_modulo=id_modulo,
+            id_periodo=id_periodo,
+            accion=accion,
+            host=host
+        )
+        print(f"✅ Bitácora registrada: Cambio de contraseña para usuario {user_id} desde host {host}")
+    except Exception as bitacora_error:
+        print(f"❌ Error al registrar en bitácora: {bitacora_error}")
+        # No fallar el cambio de contraseña por error en bitácora
+    
     return True
 
 #Funciones read
@@ -290,3 +362,46 @@ def get_all_usuarios_con_rol(db: Session):
         .filter(Usuario.Id_Estatus != 3)
         .all()
     )
+
+# Detectar si el usuario tiene contraseña temporal (basado en bitácora)
+def has_temporary_password(db: Session, user_id: int) -> bool:
+    """
+    Detecta si el usuario tiene una contraseña temporal activa.
+    Verifica si hay un reset reciente sin cambio posterior a contraseña personal.
+    """
+    try:
+        from backend.database.models.Bitacora import Bitacora
+        from datetime import datetime, timedelta
+        
+        # Buscar en las últimas 48 horas
+        hace_48h = datetime.now() - timedelta(hours=48)
+        
+        # Buscar último evento de reset de contraseña temporal
+        ultimo_reset = db.query(Bitacora).filter(
+            Bitacora.Id_Usuario == user_id,
+            Bitacora.Acciones.contains('Nueva contraseña temporal generada'),
+            Bitacora.Fecha >= hace_48h
+        ).order_by(Bitacora.Fecha.desc()).first()
+        
+        print(f"DEBUG: Usuario {user_id} - Último reset encontrado: {ultimo_reset is not None}")
+        if not ultimo_reset:
+            return False
+        
+        # Verificar si después del reset hubo un cambio a contraseña personal
+        cambio_personal = db.query(Bitacora).filter(
+            Bitacora.Id_Usuario == user_id,
+            Bitacora.Acciones.contains('Usuario cambió de contraseña temporal a personal'),
+            Bitacora.Fecha > ultimo_reset.Fecha
+        ).first()
+        
+        print(f"DEBUG: Usuario {user_id} - Cambio personal después de reset: {cambio_personal is not None}")
+        
+        # Si no hay cambio personal después del reset, aún tiene contraseña temporal
+        result = cambio_personal is None
+        print(f"DEBUG: Usuario {user_id} - Resultado final: {result}")
+        return result
+        
+    except Exception as e:
+        # Si hay error (ej: tabla bitácora no existe), asumir que no tiene contraseña temporal
+        print(f"Error detectando contraseña temporal: {e}")
+        return False
