@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from typing import Optional
+from typing import Optional, Sequence
 
 ############################__________________FUNCIONES CREATE____________________________############################
 def create_usuario(db: Session, user_data: UsuarioCreate) -> Usuario:
@@ -40,3 +40,63 @@ def read_password_by_email(db: Session, email: str) -> Optional[str]:
     stmt = select(Usuario.Contrasena).where(Usuario.Email == email)
     result = db.execute(stmt).scalar_one_or_none()
     return result
+
+############################__________________FUNCIONES UPDATE____________________________############################
+def update_usuario(
+    db: Session,
+    id_usuario: int,
+    Nombre: Optional[str],
+    Paterno: Optional[str],
+    Materno: Optional[str],
+    Email: Optional[str],
+    Id_Rol: Optional[int],
+    UsuarioStr: Optional[str] = None,
+    Id_Unidad_Academica: Optional[int] = None,
+    Id_Nivel: Optional[int] = None,
+):
+    from datetime import datetime, timezone
+    usuario = db.query(Usuario).filter(Usuario.Id_Usuario == id_usuario).first()
+    if not usuario:
+        return None
+    if Nombre is not None:
+        usuario.Nombre = Nombre
+    if Paterno is not None:
+        usuario.Paterno = Paterno
+    if Materno is not None:
+        usuario.Materno = Materno
+    if Email is not None:
+        usuario.Email = Email
+    if Id_Rol is not None:
+        usuario.Id_Rol = Id_Rol
+    if UsuarioStr is not None:
+        usuario.Usuario = UsuarioStr
+    if Id_Unidad_Academica is not None:
+        usuario.Id_Unidad_Academica = Id_Unidad_Academica
+    if Id_Nivel is not None:
+        usuario.Id_Nivel = Id_Nivel
+    usuario.Fecha_Modificacion = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+def set_usuario_estatus(db: Session, id_usuario: int, id_estatus: int):
+    from datetime import datetime, timezone
+    usuario = db.query(Usuario).filter(Usuario.Id_Usuario == id_usuario).first()
+    if not usuario:
+        return None
+    usuario.Id_Estatus = id_estatus
+    usuario.Fecha_Modificacion = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+############################__________________FUNCIONES LIST/GET____________________________############################
+def get_usuarios_by_unidad(db: Session, id_unidad_academica: int) -> Sequence[Usuario]:
+    return (
+        db.query(Usuario)
+        .filter(Usuario.Id_Unidad_Academica == id_unidad_academica, Usuario.Id_Estatus != 3)
+        .all()
+    )
+
+def get_usuario_by_id(db: Session, id_usuario: int) -> Optional[Usuario]:
+    return db.query(Usuario).filter(Usuario.Id_Usuario == id_usuario).first()

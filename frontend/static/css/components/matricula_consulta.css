@@ -10,7 +10,7 @@
 
 /* Header con información del usuario */
 .header-usuarios {
-    background: linear-gradient(135deg, #8B2635, #a73447);
+    background: linear-gradient(135deg, #ffffff, #6e0343);
     color: white;
     padding: 15px 25px;
     border-radius: 10px;
@@ -43,7 +43,7 @@
 
 /* Título principal */
 h2 {
-    color: #8B2635;
+    color: #6e0343;
     text-align: center;
     margin-bottom: 30px;
     font-size: 28px;
@@ -54,7 +54,7 @@ h2 {
 /* Contenedor de filtros horizontal */
 .filtros-container {
     background: #f8f9fa;
-    border: 2px solid #8B2635;
+    border: 2px solid #6e0343;
     border-radius: 10px;
     padding: 20px;
     margin-bottom: 30px;
@@ -77,7 +77,7 @@ h2 {
 .filtro-item label {
     display: block;
     font-weight: 600;
-    color: #8B2635;
+    color: #6e0343;
     margin-bottom: 5px;
     font-size: 14px;
 }
@@ -94,7 +94,7 @@ h2 {
 
 .filtro-item select:focus {
     outline: none;
-    border-color: #8B2635;
+    border-color: #6e0343;
     box-shadow: 0 0 0 3px rgba(139, 38, 53, 0.1);
 }
 
@@ -102,7 +102,7 @@ h2 {
     background: white;
     padding: 12px 20px;
     border-radius: 6px;
-    border-left: 4px solid #8B2635;
+    border-left: 4px solid #6e0343;
     color: #333;
     font-size: 14px;
 }
@@ -115,9 +115,101 @@ h2 {
     overflow: hidden;
 }
 
+/* Pestañas de Semestres */
+.semestres-tabs {
+    display: flex;
+    gap: 5px;
+    background: #f5f5f5;
+    padding: 15px 20px;
+    border-bottom: 3px solid #6e0343;
+    overflow-x: auto;
+    flex-wrap: wrap;
+}
+
+.semestre-tab {
+    background: white;
+    color: #6e0343;
+    border: 2px solid #6e0343;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.semestre-tab:hover {
+    background: #f8e8eb;
+    transform: translateY(-2px);
+}
+
+.semestre-tab.active {
+    background: linear-gradient(135deg, #6e0343, #a73447);
+    color: white;
+    box-shadow: 0 4px 10px rgba(139, 38, 53, 0.3);
+}
+
+/* Navegación de Turnos */
+.turno-navigation {
+    background: linear-gradient(135deg, #6e0343, #a73447);
+    padding: 15px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: white;
+}
+
+.turno-display {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.turno-label {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.turno-nombre {
+    font-size: 20px;
+    font-weight: 700;
+    padding: 5px 15px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+}
+
+.turno-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-turno {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-turno:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.btn-turno:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
 /* Secciones de edad */
 .edad-section {
-    border-bottom: 3px solid #8B2635;
+    border-bottom: 3px solid #6e0343;
     transition: all 0.3s ease;
 }
 
@@ -131,7 +223,7 @@ h2 {
 
 /* Navegación entre grupos */
 .grupo-nav {
-    background: linear-gradient(135deg, #8B2635, #a73447);
+    background: linear-gradient(135deg, #6e0343, #a73447);
     color: white;
     padding: 15px 25px;
     display: flex;
@@ -181,12 +273,12 @@ h2 {
 }
 
 .tabla-header h3 {
-    color: #8B2635;
+    color: #6e0343;
     font-size: 22px;
     font-weight: 600;
     margin: 0;
     padding: 10px 0;
-    border-bottom: 2px solid #8B2635;
+    border-bottom: 2px solid #6e0343;
     display: inline-block;
     min-width: 200px;
 }
@@ -200,11 +292,11 @@ h2 {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     border-radius: 8px;
     overflow: hidden;
-    border: 3px solid #8B2635;
+    border: 3px solid #6e0343;
 }
 
 .tabla-matricula th {
-    background: linear-gradient(135deg, #8B2635, #a73447);
+    background: linear-gradient(135deg, #6e0343, #a73447);
     color: white;
     padding: 12px 10px;
     text-align: center;
@@ -250,8 +342,8 @@ h2 {
 .tipo-ingreso-cell {
     background: #f8f9fa;
     font-weight: 600;
-    color: #8B2635;
-    border-right: 2px solid #8B2635 !important;
+    color: #6e0343;
+    border-right: 2px solid #6e0343 !important;
     padding: 15px 10px;
 }
 
@@ -266,13 +358,13 @@ h2 {
     font-weight: 600;
     color: #333;
     font-size: 16px;
-    border-right: 2px solid #8B2635 !important;
+    border-right: 2px solid #6e0343 !important;
 }
 
 .sexo-cell {
     font-weight: 600;
     font-size: 16px;
-    border-right: 2px solid #8B2635 !important;
+    border-right: 2px solid #6e0343 !important;
 }
 
 .sexo-cell.masculino {
@@ -291,10 +383,10 @@ h2 {
 }
 
 /* Inputs de matrícula */
-.input-matricula {
+.input-matricula, .input-matricula-nueva {
     width: 100%;
-    max-width: 60px;
-    padding: 8px 6px;
+    max-width: 70px;
+    padding: 6px 8px;
     border: 2px solid #ddd;
     border-radius: 4px;
     text-align: center;
@@ -304,21 +396,21 @@ h2 {
     transition: all 0.3s ease;
 }
 
-.input-matricula:focus {
+.input-matricula:focus, .input-matricula-nueva:focus {
     outline: none;
-    border-color: #8B2635;
+    border-color: #6e0343;
     box-shadow: 0 0 0 3px rgba(139, 38, 53, 0.1);
     background: #fffef7;
 }
 
-.input-matricula:hover {
+.input-matricula:hover, .input-matricula-nueva:hover {
     border-color: #a73447;
     transform: scale(1.05);
 }
 
 /* Fila de totales */
 .totales-row {
-    background: linear-gradient(135deg, #8B2635, #a73447) !important;
+    background: linear-gradient(135deg, #6e0343, #a73447) !important;
 }
 
 .totales-label {
@@ -331,9 +423,9 @@ h2 {
 .total-cell {
     background: #f8f9fa !important;
     font-weight: 600 !important;
-    color: #8B2635 !important;
+    color: #6e0343 !important;
     font-size: 16px !important;
-    border: 2px solid #8B2635 !important;
+    border: 2px solid #6e0343 !important;
 }
 
 /* Total general */
@@ -343,7 +435,7 @@ h2 {
 }
 
 .total-general {
-    background: linear-gradient(135deg, #8B2635, #a73447);
+    background: linear-gradient(135deg, #6e0343, #a73447);
     color: white;
     padding: 15px 30px;
     border-radius: 8px;
@@ -438,19 +530,43 @@ h2 {
         text-align: center;
     }
     
+    .semestres-tabs {
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 10px;
+    }
+    
+    .semestre-tab {
+        padding: 8px 15px;
+        font-size: 13px;
+    }
+    
+    .turno-navigation {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+        padding: 15px;
+    }
+    
+    .turno-display {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
     .grupo-nav {
         flex-direction: column;
         gap: 15px;
         text-align: center;
     }
     
-    .tabla-matricula {
-        font-size: 12px;
+    .tabla-matricula, .tabla-matricula-completa {
+        font-size: 11px;
     }
     
-    .input-matricula {
+    .input-matricula, .input-matricula-nueva {
         max-width: 50px;
         font-size: 12px;
+        padding: 4px 6px;
     }
     
     .actions-section {

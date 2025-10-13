@@ -21,6 +21,7 @@ from backend.services.nivel_service import get_all_niveles
 from backend.schemas.Usuario import UsuarioCreate, UsuarioResponse
 from sqlalchemy.orm import Session
 import socket
+from backend.utils.request import get_request_host
 
 router = APIRouter()
 
@@ -98,7 +99,7 @@ async def registrar_usuario_view(
         # Tomar el ID del usuario logueado desde la cookie
         id_usuario_log = request.cookies.get("id_usuario")
         try:
-            id_usuario_log = int(id_usuario_log)
+            id_usuario_log = int(id_usuario_log) if id_usuario_log is not None else 0
         except (TypeError, ValueError):
             id_usuario_log = 0
         if id_usuario_log > 0:
@@ -108,13 +109,7 @@ async def registrar_usuario_view(
                 accion = f"Registró nuevo usuario con ID {usuario_registrado.Id_Usuario}"
 
                 # Obtener el hostname del cliente (reverse DNS). Si falla, usar IP.
-                xff = request.headers.get("x-forwarded-for") or ""
-                client_ip = (xff.split(",")[0].strip() if xff else (request.client.host if request.client else ""))
-                try:
-                    # Obtener el hostname a partir de la IP
-                    host = socket.gethostbyaddr(client_ip)[0] if client_ip else ""
-                except Exception:
-                    host = client_ip
+                host = get_request_host(request)
                 # Registrar en la bitácora
                 registrar_bitacora(
                     db=db,
@@ -169,7 +164,7 @@ async def editar_usuario_ajax(
         # Tomar el ID del usuario logueado desde la cookie (no el modificado)
         id_usuario_log = request.cookies.get("id_usuario")
         try:
-            id_usuario_log = int(id_usuario_log)
+            id_usuario_log = int(id_usuario_log) if id_usuario_log is not None else 0
         except (TypeError, ValueError):
             id_usuario_log = 0
         if id_usuario_log > 0:
@@ -213,19 +208,14 @@ async def eliminar_usuario(
         # Bitácora: quién elimina a quién
         id_usuario_log = request.cookies.get("id_usuario")
         try:
-            id_usuario_log = int(id_usuario_log)
+            id_usuario_log = int(id_usuario_log) if id_usuario_log is not None else 0
         except (TypeError, ValueError):
             id_usuario_log = 0
         if id_usuario_log > 0:
             id_modulo = 1
             id_periodo = 9
             accion = f"Eliminó (baja lógica) usuario con ID {id_usuario}"
-            xff = request.headers.get("x-forwarded-for") or ""
-            client_ip = (xff.split(",")[0].strip() if xff else (request.client.host if request.client else ""))
-            try:
-                host = socket.gethostbyaddr(client_ip)[0] if client_ip else ""
-            except Exception:
-                host = client_ip
+            host = get_request_host(request)
             registrar_bitacora(db=db, id_usuario=id_usuario_log, id_modulo=id_modulo, id_periodo=id_periodo, accion=accion, host=host)
 
         return JSONResponse(content={"mensaje": "Usuario dado de baja correctamente."})
