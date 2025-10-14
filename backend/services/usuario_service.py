@@ -1,9 +1,18 @@
-from backend.crud.Usuario import create_usuario, read_user_by_username, read_user_by_email, read_password_by_user
-from backend.crud.Usuario import read_password_by_email
+from backend.crud.Usuario import (
+    create_usuario,
+    read_user_by_username,
+    read_user_by_email,
+    read_password_by_user,
+    read_password_by_email,
+    update_usuario as crud_update_usuario,
+    set_usuario_estatus as crud_set_usuario_estatus,
+    get_usuarios_by_unidad as crud_get_usuarios_by_unidad,
+    get_usuario_by_id as crud_get_usuario_by_id,
+)
 from backend.services.bitacora_service import registrar_bitacora
 from backend.database.models.Usuario import Usuario
-from backend.utils.security import hash_password
-from backend.utils.security import generate_random_password
+from backend.utils.security import hash_password, generate_random_password
+from backend.utils.request import get_request_host
 from backend.utils.email import send_email, EmailSendError
 from backend.schemas.Usuario import UsuarioCreate, UsuarioResponse, UsuarioLogin
 
@@ -48,16 +57,7 @@ def reset_password(db: Session, username: str, email: str, request = None) -> bo
             accion = f"Nueva contraseña temporal generada para {user.Usuario}"
 
             # Obtener el hostname del cliente (reverse DNS). Si falla, usar IP.
-            if request:
-                xff = request.headers.get("x-forwarded-for") or ""
-                client_ip = (xff.split(",")[0].strip() if xff else (request.client.host if request.client else ""))
-                try:
-                    # Obtener el hostname a partir de la IP
-                    host = socket.gethostbyaddr(client_ip)[0] if client_ip else ""
-                except Exception:
-                    host = client_ip
-            else:
-                host = "sistema"
+            host = get_request_host(request)
             
             # Registrar en la bitácora
             registrar_bitacora(
@@ -114,16 +114,7 @@ def change_password(db: Session, user_id: int, current_password: str, new_passwo
         accion = f"Usuario cambió de contraseña temporal a personal"
 
         # Obtener el hostname del cliente (reverse DNS). Si falla, usar IP.
-        if request:
-            xff = request.headers.get("x-forwarded-for") or ""
-            client_ip = (xff.split(",")[0].strip() if xff else (request.client.host if request.client else ""))
-            try:
-                # Obtener el hostname a partir de la IP
-                host = socket.gethostbyaddr(client_ip)[0] if client_ip else ""
-            except Exception:
-                host = client_ip
-        else:
-            host = "sistema"
+        host = get_request_host(request)
         
         # Registrar en la bitácora
         registrar_bitacora(
@@ -240,55 +231,41 @@ def register_usuario(db: Session, user_dict: UsuarioCreate) -> UsuarioResponse:
 
 # Obtener todos los usuarios de una Unidad Académica
 def get_usuarios_by_unidad(db: Session, id_unidad_academica: int):
-    from backend.database.models.Usuario import Usuario
-    return (
-        db.query(Usuario)
-        .filter(
-            Usuario.Id_Unidad_Academica == id_unidad_academica,
-            Usuario.Id_Estatus != 3
-        )
-        .all()
-    )
+    return crud_get_usuarios_by_unidad(db, id_unidad_academica)
 
 # Obtener un usuario por su ID
 def get_usuario_by_id(db: Session, id_usuario: int):
-    from backend.database.models.Usuario import Usuario
-    return db.query(Usuario).filter(Usuario.Id_Usuario == id_usuario).first()
+    return crud_get_usuario_by_id(db, id_usuario)
 
 # Actualizar un usuario
-def update_usuario(db: Session, id_usuario: int, Nombre: str, Paterno: str, Materno: str, Email: str, Id_Rol: int, Usuario: Optional[str] = None, Id_Unidad_Academica: Optional[int] = None, Id_Nivel: Optional[int] = None):
-    from backend.database.models.Usuario import Usuario as UsuarioModel
-    from datetime import datetime, timezone
-    usuario = db.query(UsuarioModel).filter(UsuarioModel.Id_Usuario == id_usuario).first()
-    if usuario:
-        usuario.Nombre = Nombre
-        usuario.Paterno = Paterno
-        usuario.Materno = Materno
-        usuario.Email = Email
-        usuario.Id_Rol = Id_Rol
-        if Usuario is not None:
-            usuario.Usuario = Usuario
-        if Id_Unidad_Academica is not None:
-            usuario.Id_Unidad_Academica = Id_Unidad_Academica
-        if Id_Nivel is not None:
-            usuario.Id_Nivel = Id_Nivel
-        usuario.Fecha_Modificacion = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(usuario)
-    return usuario
+def update_usuario(
+    db: Session,
+    id_usuario: int,
+    Nombre: str,
+    Paterno: str,
+    Materno: str,
+    Email: str,
+    Id_Rol: int,
+    Usuario: Optional[str] = None,
+    Id_Unidad_Academica: Optional[int] = None,
+    Id_Nivel: Optional[int] = None,
+):
+    return crud_update_usuario(
+        db,
+        id_usuario,
+        Nombre,
+        Paterno,
+        Materno,
+        Email,
+        Id_Rol,
+        UsuarioStr=Usuario,
+        Id_Unidad_Academica=Id_Unidad_Academica,
+        Id_Nivel=Id_Nivel,
+    )
 
 # Cambiar estatus de un usuario (baja lógica)
 def set_usuario_estatus(db: Session, id_usuario: int, id_estatus: int):
-    from backend.database.models.Usuario import Usuario as UsuarioModel
-    from datetime import datetime, timezone
-    usuario = db.query(UsuarioModel).filter(UsuarioModel.Id_Usuario == id_usuario).first()
-    if not usuario:
-        return None
-    usuario.Id_Estatus = id_estatus
-    usuario.Fecha_Modificacion = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(usuario)
-    return usuario
+    return crud_set_usuario_estatus(db, id_usuario, id_estatus)
 
 # Obtener todos los roles
 def get_all_roles(db: Session):
@@ -313,8 +290,8 @@ def get_usuarios_by_unidad_con_rol(db: Session, id_unidad_academica: int):
 
 # Obtener el nombre de la Unidad Académica por su id
 def get_unidad_academica_nombre(db: Session, id_unidad_academica: int) -> str:
-    from backend.database.models.CatUnidadAcademica import CatUnidadAcademica
-    ua = db.query(CatUnidadAcademica).filter(CatUnidadAcademica.Id_Unidad_Academica == id_unidad_academica).first()
+    from backend.crud.CatUnidadAcademica import read_unidad_by_id
+    ua = read_unidad_by_id(db, id_unidad_academica)
     return ua.Nombre if ua else "-"
 
 # Verificar si un usuario es super admin (nombre completo "admin admin admin")

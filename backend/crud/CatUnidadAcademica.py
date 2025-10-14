@@ -32,3 +32,7 @@ def read_all_unidades(db: Session) -> Sequence[CatUnidadAcademica]:
     stmt = select(CatUnidadAcademica).order_by(CatUnidadAcademica.Sigla)
     result = db.execute(stmt).scalars().all()
     return result
+
+def read_unidad_by_id(db: Session, id_unidad: int) -> Optional[CatUnidadAcademica]:
+    stmt = select(CatUnidadAcademica).where(CatUnidadAcademica.Id_Unidad_Academica == id_unidad)
+    return db.execute(stmt).scalars().first()

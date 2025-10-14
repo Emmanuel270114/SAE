@@ -98,3 +98,86 @@ select.input-form {
 }
 
 /* Estilos para la tabla de usuarios */
+
+/* Estilos para la tabla de matrícula compacta */
+.tabla-matricula-completa {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(110,3,67,0.1);
+}
+
+.tabla-matricula-completa thead th {
+    background: var(--ipn-morado);
+    color: white;
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: bold;
+    border: 1px solid #ddd;
+}
+
+.tabla-matricula-completa tbody td {
+    padding: 8px;
+    border: 1px solid #ddd;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.tipo-edad-cell {
+    text-align: left !important;
+    background: #f8f9fa;
+    font-weight: 500;
+    padding: 10px 12px !important;
+}
+
+.input-cell {
+    padding: 4px !important;
+}
+
+.input-cell.masculino {
+    background: rgba(173, 216, 230, 0.3);
+}
+
+.input-cell.femenino {
+    background: rgba(255, 182, 193, 0.3);
+}
+
+.input-matricula {
+    width: 70px;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.input-matricula:focus {
+    border-color: var(--ipn-morado);
+    outline: none;
+    box-shadow: 0 0 5px rgba(110,3,67,0.3);
+}
+
+.totales-row td, .totales-row-final td {
+    background: #f0f0f0;
+    font-weight: bold;
+    padding: 10px 8px !important;
+}
+
+.totales-row-final td {
+    background: var(--ipn-morado);
+    color: white;
+}
+
+.total-span, .total-general-span {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.col-tipo-edad {
+    width: 40%;
+}
+
+.col-masculino, .col-femenino {
+    width: 30%;
+}
