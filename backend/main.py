@@ -9,6 +9,7 @@ from backend.api import programas
 from backend.api import matricula
 from backend.api import matricula_sp
 from backend.api import recuperacion
+from backend.api.catalogos import domicilios
 from backend.core.templates import static
 
 from fastapi import FastAPI
@@ -25,6 +26,7 @@ app.include_router(unidad_academica.router , prefix="/unidad-academica")
 app.include_router(programas.router , prefix="/programas")
 app.include_router(matricula.router , prefix="/matricula")
 app.include_router(matricula_sp.router , prefix="/matricula")
+app.include_router(domicilios.router)
 app.include_router(recuperacion.router)
 
 @app.get("/", response_class=HTMLResponse)
