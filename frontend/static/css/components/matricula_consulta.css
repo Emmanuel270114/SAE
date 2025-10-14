@@ -237,7 +237,6 @@ h2 {
 }
 
 .nav-buttons {
-    display: flex;
     gap: 10px;
 }
 
@@ -298,15 +297,14 @@ h2 {
 .tabla-matricula th {
     background: linear-gradient(135deg, #6e0343, #a73447);
     color: white;
-    padding: 12px 10px;
-    text-align: center;
+    padding: 6px 4px;
     font-weight: 600;
     font-size: 13px;
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .tabla-matricula td {
-    padding: 10px;
+    padding: 4px 4px;
     text-align: center;
     border: 1px solid #ddd;
     vertical-align: middle;
@@ -319,12 +317,16 @@ h2 {
 }
 
 .col-edad {
-    width: 10%;
-    font-size: 12px;
+    width: 6%;
+    font-size: 13px;
+    min-width: 45px;
+    padding: 2px 2px !important;
+    text-align: center;
+    vertical-align: middle;
 }
 
 .col-sexo {
-    width: 8%;
+    width: 6%;
     font-size: 12px;
 }
 
@@ -334,8 +336,10 @@ h2 {
 }
 
 .col-matutino, .col-vespertino, .col-mixto {
-    width: 12%;
+    width: 110px;
+    max-width: 110px;
     font-size: 11px;
+    padding: 8px 4px !important;
 }
 
 /* Celdas de la tabla */
@@ -344,7 +348,7 @@ h2 {
     font-weight: 600;
     color: #6e0343;
     border-right: 2px solid #6e0343 !important;
-    padding: 15px 10px;
+    padding: 10px 6px;
 }
 
 .tipo-ingreso-label {
@@ -357,9 +361,33 @@ h2 {
     background: #f1f3f4;
     font-weight: 600;
     color: #333;
-    font-size: 16px;
+    font-size: 13px;
     border-right: 2px solid #6e0343 !important;
+    padding: 2px 2px !important;
+    line-height: 1.1;
+    height: 32px;
+    min-height: 32px;
+    vertical-align: middle;
 }
+/* Forzar inputs H y M en la misma línea */
+.matricula-pair-horizontal {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    min-height: 32px;
+}
+
+/* Pares de inputs matrícula (H/M) horizontal estricta */
+.matricula-pair { display:inline-flex; gap:6px; justify-content:center; align-items:center; width:100%; }
+.matricula-box { white-space:nowrap; }
+.matricula-box input { box-sizing:border-box; }
+.matricula-label { display:inline-block; }
+
+/* Evitar expansión vertical de celdas por contenido inline */
+td .matricula-pair { flex-wrap:nowrap; }
 
 .sexo-cell {
     font-weight: 600;
@@ -379,18 +407,18 @@ h2 {
 
 .input-cell {
     background: white;
-    padding: 5px;
+    padding: 4px 2px;
 }
 
 /* Inputs de matrícula */
 .input-matricula, .input-matricula-nueva {
     width: 100%;
-    max-width: 70px;
-    padding: 6px 8px;
+    max-width: 45px;
+    padding: 3px 4px;
     border: 2px solid #ddd;
-    border-radius: 4px;
+    border-radius: 3px;
     text-align: center;
-    font-size: 14px;
+    font-size: 11px;
     font-weight: 600;
     background: white;
     transition: all 0.3s ease;
@@ -594,4 +622,114 @@ h2 {
 
 .edad-section {
     animation: fadeIn 0.5s ease-out;
+}
+
+/* Estilos para tabla con scroll fijo */
+.tabla-matricula-container {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    margin-bottom: 20px;
+    max-height: 500px;
+    display: flex;
+    flex-direction: column;
+}
+
+.tabla-matricula-completa {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+}
+
+.tabla-matricula-completa thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.tabla-matricula-completa thead th {
+    padding: 10px 8px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 13px;
+    color: white;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.tabla-matricula-completa tbody {
+    display: block;
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.tabla-matricula-completa thead,
+.tabla-matricula-completa tbody tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+}
+
+.tabla-matricula-completa tbody tr {
+    border-bottom: 1px solid #e0e0e0;
+    transition: all 0.2s ease;
+}
+
+.tabla-matricula-completa tbody tr:hover {
+    background-color: #f5f5f5;
+}
+
+.tabla-matricula-completa tbody td {
+    padding: 6px 4px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.tabla-matricula-completa tbody::-webkit-scrollbar {
+    width: 8px;
+}
+
+.tabla-matricula-completa tbody::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.tabla-matricula-completa tbody::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.tabla-matricula-completa tbody::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Inputs más compactos */
+.input-matricula-nueva {
+    width: 100%;
+    padding: 4px 6px;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    font-weight: 600;
+    text-align: center;
+    font-size: 12px;
+}
+
+.input-matricula-nueva:focus {
+    outline: none;
+    border-color: #6e0343;
+}
+
+/* Quitar flechas de inputs type=number */
+.input-matricula-nueva::-webkit-inner-spin-button,
+.input-matricula-nueva::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.input-matricula-nueva[type=number] {
+    -moz-appearance: textfield;
 }

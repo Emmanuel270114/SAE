@@ -8,16 +8,18 @@ from backend.database.connection import get_db
 from backend.database.models.Matricula import Matricula
 from backend.database.models.CatPeriodo import CatPeriodo as Periodo
 from backend.database.models.CatUnidadAcademica import CatUnidadAcademica as Unidad_Academica
-from backend.database.models.CatProgramas import CatProgramas as Programas
-from backend.database.models.CatRama import CatRama as Rama
 from backend.database.models.CatNivel import CatNivel as Nivel
+from backend.database.models.CatSemestre import CatSemestre as Semestre
+from backend.database.models.CatProgramas import CatProgramas as Programas
 from backend.database.models.CatModalidad import CatModalidad as Modalidad
 from backend.database.models.CatTurno import CatTurno as Turno
-from backend.database.models.CatSemestre import CatSemestre as Semestre
 from backend.database.models.CatGrupoEdad import CatGrupoEdad as Grupo_Edad
 from backend.database.models.CatTipoIngreso import TipoIngreso as Tipo_Ingreso
-from backend.database.models.CatSexo import CatSexo as Sexo
-from backend.services.matricula_service import execute_matricula_sp_with_context
+from backend.services.matricula_service import (
+    execute_matricula_sp_with_context,
+    get_matricula_metadata_from_sp
+)
+from backend.utils.request import get_request_host
 
 router = APIRouter()
 
@@ -25,9 +27,9 @@ router = APIRouter()
 @router.get('/consulta')
 async def captura_matricula_sp_view(request: Request, db: Session = Depends(get_db)):
     """
-    Endpoint principal para la captura de matrícula usando Stored Procedures.
+    Endpoint principal para la captura de matrícula usando EXCLUSIVAMENTE Stored Procedures.
     Solo accesible para usuarios con rol 'Capturista'.
-    Utiliza SP para obtener datos existentes y permite captura con validaciones mejoradas.
+    TODA la información viene del SP, NO de los modelos ORM.
     """
     # Obtener datos del usuario logueado desde las cookies
     id_unidad_academica = int(request.cookies.get("id_unidad_academica", 0))
@@ -47,84 +49,121 @@ async def captura_matricula_sp_view(request: Request, db: Session = Depends(get_
             "redirect_url": "/mod_principal/"
         })
 
-    # Obtener datos para los filtros desde la base de datos
+    print(f"\n{'='*60}")
+    print(f"CARGANDO VISTA DE MATRÍCULA - TODO DESDE SP")
+    print(f"Usuario: {nombre_completo}")
+    print(f"ID Unidad Académica: {id_unidad_academica}")
+    print(f"ID Nivel: {id_nivel}")
+    print(f"{'='*60}")
+
+    # Obtener SOLO período y unidad desde la base de datos (mínimo necesario)
     periodos = db.query(Periodo).all()
-    unidades_academicas = db.query(Unidad_Academica).filter(Unidad_Academica.Id_Unidad_Academica == id_unidad_academica).all()
-    # Filtrar programas por la Unidad Académica del usuario usando la tabla Matricula
-    programas_ids = db.query(Matricula.Id_Programa).filter(Matricula.Id_Unidad_Academica == id_unidad_academica).distinct().all()
-    programa_ids_list = [p.Id_Programa for p in programas_ids]
-    if programa_ids_list:
-        programas = db.query(Programas).filter(Programas.Id_Programa.in_(programa_ids_list), Programas.Id_Nivel == id_nivel).all()
-    else:
-        programas = []
-    modalidades = db.query(Modalidad).all()
-    semestres = db.query(Semestre).all()
-    turnos = db.query(Turno).all()
+    unidades_academicas = db.query(Unidad_Academica).filter(
+        Unidad_Academica.Id_Unidad_Academica == id_unidad_academica
+    ).all()
     
-    # Obtener grupos de edad dinámicamente del SP
-    try:
-        # Ejecutar SP para obtener grupos de edad disponibles
-        rows_sp, _, _ = execute_matricula_sp_with_context(
-            db=db,
-            id_unidad_academica=id_unidad_academica,
-            id_nivel=id_nivel,
-            periodo_input='2025-2026/1',
-            default_periodo='2025-2026/1'
-        )
-        
-        # Extraer IDs únicos de grupos de edad del SP
-        grupos_edad_ids_from_sp = set()
-        for row in rows_sp:
-            # Buscar columnas que contengan información de grupo de edad
-            for key, value in row.items():
-                if 'grupo' in key.lower() and 'edad' in key.lower() and 'id' in key.lower():
-                    if value is not None:
-                        try:
-                            grupos_edad_ids_from_sp.add(int(value))
-                        except (ValueError, TypeError):
-                            pass
-        
-        # Obtener objetos de grupos de edad basados en IDs del SP
-        if grupos_edad_ids_from_sp:
-            grupos_edad = db.query(Grupo_Edad).filter(
-                Grupo_Edad.Id_Grupo_Edad.in_(list(grupos_edad_ids_from_sp))
-            ).all()
-            print(f"Grupos de edad obtenidos del SP: {len(grupos_edad)}")
-            for grupo in grupos_edad:
-                print(f"- ID: {grupo.Id_Grupo_Edad}, Grupo: {grupo.Grupo_Edad}")
-        else:
-            # Fallback: obtener todos los grupos de edad
-            grupos_edad = db.query(Grupo_Edad).all()
-            print(f"Usando todos los grupos de edad como fallback: {len(grupos_edad)}")
-    except Exception as e:
-        print(f"Error obteniendo grupos de edad del SP: {e}")
-        # Fallback: obtener todos los grupos de edad
-        grupos_edad = db.query(Grupo_Edad).all()
-    
-    # Obtener tipos de ingreso usando solo ORM
-    try:
-        tipos_ingreso = db.query(Tipo_Ingreso).all()
-        print(f"Tipos de ingreso obtenidos: {len(tipos_ingreso)}")
-        for tipo in tipos_ingreso:
-            print(f"- ID: {tipo.Id_Tipo_Ingreso}, Nombre: {tipo.Tipo_de_Ingreso}")
-                
-    except Exception as e:
-        print(f"Error al obtener tipos de ingreso: {e}")
-        tipos_ingreso = []
-    
-    # Construir un mapping simple id -> etiqueta de semestre serializado a JSON
-    semestres_map = {s.Id_Semestre: s.Semestre for s in semestres}
-    semestres_map_json = json.dumps(semestres_map, ensure_ascii=False)
-
-    # Convertir turnos a lista de diccionarios para serialización JSON
-    turnos_list = [{"Id_Turno": t.Id_Turno, "Turno": t.Turno} for t in turnos]
-
-    # Definir periodo por defecto (Id_Periodo = 9) y la unidad académica actual
+    # Definir periodo por defecto
     periodo_default_id = 9
+    periodo_default_literal = '2025-2026/1'
     unidad_actual = unidades_academicas[0] if unidades_academicas else None
 
-    # Convertir grupos de edad a diccionarios para serialización JSON
-    grupos_edad_dicts = [{"Id_Grupo_Edad": g.Id_Grupo_Edad, "Grupo_Edad": g.Grupo_Edad} for g in grupos_edad]
+    # Obtener usuario y host para el SP
+    usuario_sp = nombre_completo or 'sistema'
+    host_sp = get_request_host(request)
+
+    # Obtener TODOS los metadatos desde el SP (con usuario y host)
+    metadata = get_matricula_metadata_from_sp(
+        db=db,
+        id_unidad_academica=id_unidad_academica,
+        id_nivel=id_nivel,
+        periodo_input=periodo_default_literal,
+        default_periodo=periodo_default_literal,
+        usuario=usuario_sp,
+        host=host_sp
+    )
+
+    # Verificar si hubo error
+    if 'error' in metadata and metadata['error']:
+        print(f"⚠️ Error obteniendo metadatos: {metadata['error']}")
+
+    # Preparar datos para el template
+    grupos_edad_labels = metadata.get('grupos_edad', [])
+    tipos_ingreso_labels = metadata.get('tipos_ingreso', [])
+    programas_labels = metadata.get('programas', [])
+    modalidades_labels = metadata.get('modalidades', [])
+    semestres_labels = metadata.get('semestres', [])
+    turnos_labels = metadata.get('turnos', [])
+
+    # Mapear nombres a objetos de catálogo para obtener IDs
+    # Grupos de Edad
+    grupos_edad_db = db.query(Grupo_Edad).all()
+    grupos_edad_map = {str(g.Grupo_Edad): g for g in grupos_edad_db}
+    grupos_edad_formatted = []
+    for label in grupos_edad_labels:
+        if label in grupos_edad_map:
+            g = grupos_edad_map[label]
+            grupos_edad_formatted.append({'Id_Grupo_Edad': g.Id_Grupo_Edad, 'Grupo_Edad': g.Grupo_Edad})
+    
+    # Tipos de Ingreso
+    tipos_ingreso_db = db.query(Tipo_Ingreso).all()
+    tipos_ingreso_map = {str(t.Tipo_de_Ingreso): t for t in tipos_ingreso_db}
+    tipos_ingreso_formatted = []
+    for label in tipos_ingreso_labels:
+        if label in tipos_ingreso_map:
+            t = tipos_ingreso_map[label]
+            tipos_ingreso_formatted.append({'Id_Tipo_Ingreso': t.Id_Tipo_Ingreso, 'Tipo_de_Ingreso': t.Tipo_de_Ingreso})
+    
+    # Programas
+    programas_db = db.query(Programas).filter(Programas.Id_Nivel == id_nivel).all()
+    programas_map = {str(p.Nombre_Programa): p for p in programas_db}
+    programas_formatted = []
+    for label in programas_labels:
+        if label in programas_map:
+            p = programas_map[label]
+            programas_formatted.append({
+                'Id_Programa': p.Id_Programa,
+                'Nombre_Programa': p.Nombre_Programa,
+                'Id_Semestre': p.Id_Semestre
+            })
+    
+    # Modalidades
+    modalidades_db = db.query(Modalidad).all()
+    modalidades_map = {str(m.Modalidad): m for m in modalidades_db}
+    modalidades_formatted = []
+    for label in modalidades_labels:
+        if label in modalidades_map:
+            m = modalidades_map[label]
+            modalidades_formatted.append({'Id_Modalidad': m.Id_Modalidad, 'Modalidad': m.Modalidad})
+    
+    # Semestres
+    semestres_db = db.query(Semestre).all()
+    semestres_map_db = {str(s.Semestre): s for s in semestres_db}
+    semestres_formatted = []
+    for label in semestres_labels:
+        if label in semestres_map_db:
+            s = semestres_map_db[label]
+            semestres_formatted.append({'Id_Semestre': s.Id_Semestre, 'Semestre': s.Semestre})
+    
+    # Turnos
+    turnos_db = db.query(Turno).all()
+    turnos_map = {str(t.Turno): t for t in turnos_db}
+    turnos_formatted = []
+    for label in turnos_labels:
+        if label in turnos_map:
+            t = turnos_map[label]
+            turnos_formatted.append({'Id_Turno': t.Id_Turno, 'Turno': t.Turno})
+
+    # Construir un mapping simple para semestres
+    semestres_map_json_dict = {s['Id_Semestre']: s['Semestre'] for s in semestres_formatted}
+    semestres_map_json = json.dumps(semestres_map_json_dict, ensure_ascii=False)
+
+    print(f"\n=== METADATOS ENVIADOS AL FRONTEND ===")
+    print(f"Grupos de Edad: {len(grupos_edad_formatted)} -> {[g['Grupo_Edad'] for g in grupos_edad_formatted]}")
+    print(f"Tipos de Ingreso: {len(tipos_ingreso_formatted)} -> {[t['Tipo_de_Ingreso'] for t in tipos_ingreso_formatted]}")
+    print(f"Programas: {len(programas_formatted)} -> {[p['Nombre_Programa'] for p in programas_formatted]}")
+    print(f"Modalidades: {len(modalidades_formatted)}")
+    print(f"Semestres: {len(semestres_formatted)}")
+    print(f"Turnos: {len(turnos_formatted)}")
 
     return templates.TemplateResponse("matricula_consulta.html", {
         "request": request,
@@ -137,13 +176,13 @@ async def captura_matricula_sp_view(request: Request, db: Session = Depends(get_
         "unidades_academicas": unidades_academicas,
         "periodo_default_id": periodo_default_id,
         "unidad_actual": unidad_actual,
-        "programas": programas,
-        "modalidades": modalidades,
-        "semestres": semestres,
+        "programas": programas_formatted,
+        "modalidades": modalidades_formatted,
+        "semestres": semestres_formatted,
         "semestres_map_json": semestres_map_json,
-        "turnos": turnos_list,
-        "grupos_edad": grupos_edad_dicts,
-        "tipos_ingreso": tipos_ingreso
+        "turnos": turnos_formatted,
+        "grupos_edad": grupos_edad_formatted,
+        "tipos_ingreso": tipos_ingreso_formatted
     })
 
 # Endpoint para obtener datos existentes usando SP
@@ -153,7 +192,9 @@ async def obtener_datos_existentes_sp(
     db: Session = Depends(get_db)
 ):
     """
-    Endpoint para obtener datos existentes usando SP - refactorizado para usar servicio centralizado.
+    Endpoint para obtener datos existentes usando SP.
+    Retorna SOLO las filas del SP sin procesamiento adicional.
+    El frontend se encarga de construir la tabla con estos datos.
     """
     try:
         data = await request.json()
@@ -163,69 +204,53 @@ async def obtener_datos_existentes_sp(
         # Obtener parámetros del JSON
         periodo = data.get('periodo')
         
-        # Obtener datos del usuario desde cookies (usar UA y Nivel del usuario que inició sesión)
+        # Obtener datos del usuario desde cookies
         id_unidad_academica = int(request.cookies.get("id_unidad_academica", 0))
         id_nivel = int(request.cookies.get("id_nivel", 0))
+        nombre_usuario = request.cookies.get("nombre_usuario", "")
+        apellidoP_usuario = request.cookies.get("apellidoP_usuario", "")
+        apellidoM_usuario = request.cookies.get("apellidoM_usuario", "")
+        nombre_completo = " ".join(filter(None, [nombre_usuario, apellidoP_usuario, apellidoM_usuario]))
 
         print(f"ID Unidad Académica (cookie): {id_unidad_academica}")
         print(f"ID Nivel (cookie): {id_nivel}")
+        print(f"Usuario: {nombre_completo}")
 
-        # Usar servicio centralizado para ejecutar SP
-        rows_list, datos_map, debug_msg = execute_matricula_sp_with_context(
+        # Obtener usuario y host para el SP
+        usuario_sp = nombre_completo or 'sistema'
+        host_sp = get_request_host(request)
+        print(f"Host: {host_sp}")
+
+        # Ejecutar SP y obtener metadatos (con usuario y host)
+        rows_list, metadata, debug_msg = execute_matricula_sp_with_context(
             db=db,
             id_unidad_academica=id_unidad_academica,
             id_nivel=id_nivel,
             periodo_input=periodo,
-            default_periodo='2025-2026/1'
+            default_periodo='2025-2026/1',
+            usuario=usuario_sp,
+            host=host_sp
         )
         
         print(f"\n=== RESULTADOS DEL SP ===")
         print(debug_msg)
-
-        if rows_list:
-            # Mostrar estructura de la primera fila
-            first_row = rows_list[0]
-            print(f"\nEstructura de datos (primera fila):")
-            for key, value in first_row.items():
-                print(f"  - {key}: {value} ({type(value).__name__})")
-
-            # Mostrar primeras 5 filas completas
-            print(f"\nPrimeras 5 filas de datos:")
-            for i, row_dict in enumerate(rows_list[:5]):
-                print(f"Fila {i+1}: {row_dict}")
-
-        # Manejar valores NULL para mostrar campos vacíos en lugar de 0
-        rows_processed = []
-        for row in rows_list:
-            processed_row = {}
-            for key, value in row.items():
-                # Si el valor es NULL o None, convertirlo a cadena vacía
-                if value is None or (isinstance(value, str) and value.upper() == 'NULL'):
-                    processed_row[key] = ""
-                else:
-                    processed_row[key] = value
-            rows_processed.append(processed_row)
-
-        # Log de valores únicos detectados por columna
-        print("\n=== ANÁLISIS DE VALORES ÚNICOS POR COLUMNA ===")
-        if rows_processed:
-            for col in rows_processed[0].keys():
-                unique_values = set()
-                for row in rows_processed:
-                    if row[col] is not None and row[col] != "":
-                        unique_values.add(str(row[col]))
-                print(f"Columna '{col}': {len(unique_values)} valores únicos -> {sorted(unique_values)}")
-        else:
-            print("No hay filas para analizar valores únicos.")
+        print(f"Total de filas: {len(rows_list)}")
+        print(f"Metadatos extraídos: {metadata}")
 
         # Devolver resultado exitoso o error
         if "Error" in debug_msg:
             return {"error": debug_msg}
         else:
-            return {"datos": datos_map, "rows": rows_processed, "debug": debug_msg}
+            return {
+                "rows": rows_list,
+                "metadata": metadata,
+                "debug": debug_msg
+            }
 
     except Exception as e:
         print(f"ERROR en endpoint SP: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {"error": f"Error al obtener datos existentes: {str(e)}"}
 
 # Endpoint de depuración detallada del SP
@@ -240,11 +265,21 @@ async def debug_sp(request: Request, db: Session = Depends(get_db)):
         # Leer cookies del usuario
         id_unidad_academica = int(request.cookies.get("id_unidad_academica", 0))
         id_nivel = int(request.cookies.get("id_nivel", 0))
+        nombre_usuario = request.cookies.get("nombre_usuario", "")
+        apellidoP_usuario = request.cookies.get("apellidoP_usuario", "")
+        apellidoM_usuario = request.cookies.get("apellidoM_usuario", "")
+        nombre_completo = " ".join(filter(None, [nombre_usuario, apellidoP_usuario, apellidoM_usuario]))
         periodo = '2025-2026/1'
 
         print(f"ID Unidad Académica (cookie): {id_unidad_academica}")
         print(f"ID Nivel (cookie): {id_nivel}")
+        print(f"Usuario: {nombre_completo}")
         print(f"Periodo (forzado): {periodo}")
+
+        # Obtener usuario y host para el SP
+        usuario_sp = nombre_completo or 'sistema'
+        host_sp = get_request_host(request)
+        print(f"Host: {host_sp}")
 
         unidad = db.query(Unidad_Academica).filter(Unidad_Academica.Id_Unidad_Academica == id_unidad_academica).first()
         nivel = db.query(Nivel).filter(Nivel.Id_Nivel == id_nivel).first()
@@ -259,10 +294,23 @@ async def debug_sp(request: Request, db: Session = Depends(get_db)):
         nivel_nombre = nivel.Nivel
         periodo_nombre = periodo_obj.Periodo if periodo_obj else periodo
 
-        print(f"Ejecutando SP con: Unidad={unidad_sigla}, Periodo={periodo_nombre}, Nivel={nivel_nombre}")
+        print(f"Ejecutando SP con: Unidad={unidad_sigla}, Periodo={periodo_nombre}, Nivel={nivel_nombre}, Usuario={usuario_sp}, Host={host_sp}")
 
-        sql = text("EXEC SP_Consulta_Matricula_Unidad_Academica @Unidad_Academica = :unidad, @periodo = :periodo, @nivel = :nivel")
-        result = db.execute(sql, {'unidad': unidad_sigla, 'periodo': periodo_nombre, 'nivel': nivel_nombre})
+        sql = text("""
+            EXEC SP_Consulta_Matricula_Unidad_Academica 
+                @Unidad_Academica = :unidad, 
+                @Pperiodo = :periodo, 
+                @nivel = :nivel, 
+                @UUsuario = :usuario, 
+                @HHost = :host
+        """)
+        result = db.execute(sql, {
+            'unidad': unidad_sigla, 
+            'periodo': periodo_nombre, 
+            'nivel': nivel_nombre,
+            'usuario': usuario_sp,
+            'host': host_sp
+        })
         rows = result.fetchall()
 
         print(f"TOTAL DE FILAS DEVUELTAS: {len(rows)}")
