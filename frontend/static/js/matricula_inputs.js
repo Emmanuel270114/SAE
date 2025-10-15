@@ -11,7 +11,9 @@ const MATRICULA_CONFIG = {
         labelFemale: 'font-weight:700;color:#c2185b;font-size:11px;min-width:14px;text-align:center;',
         // Inputs
         inputMale: 'width:42px;padding:2px 3px;border:2px solid #2196f3;border-radius:3px;background:#fff;color:#1976d2;font-weight:600;text-align:center;font-size:11px;line-height:1.1;',
-        inputFemale: 'width:42px;padding:2px 3px;border:2px solid #e91e63;border-radius:3px;background:#fff;color:#c2185b;font-weight:600;text-align:center;font-size:11px;line-height:1.1;'
+        inputFemale: 'width:42px;padding:2px 3px;border:2px solid #e91e63;border-radius:3px;background:#fff;color:#c2185b;font-weight:600;text-align:center;font-size:11px;line-height:1.1;',
+        //Si ya esta lleno poner en verde el input
+        inputFilled: 'border-color: #4caf50; background-color: #e8f5e9;'
     },
     labels: {
         male: 'H',  // Hombre
@@ -31,6 +33,21 @@ function crearInputMatricula(tipoId, grupoId, sexo, valor = '') {
 
 // Función para crear una celda completa con ambos sexos (en línea horizontal)
 function crearCeldaMatricula(tipoId, grupoId, valorM = '', valorF = '') {
-    // Forzar layout horizontal y sin saltos de línea
-    return `<div class="matricula-pair-horizontal">${crearInputMatricula(tipoId, grupoId, 'M', valorM)}${crearInputMatricula(tipoId, grupoId, 'F', valorF)}</div>`;
+    // Aplicamos el estilo 'container' definido para asegurar la disposición horizontal
+    const containerStyle = MATRICULA_CONFIG.inputStyles.container;
+    
+    // El orden en los argumentos de la función sugiere Hombre ('M') y luego Mujer ('F'),
+    // pero la llamada a crearInputMatricula original usa primero 'M' y luego 'F'.
+    // Asumiendo que el orden debe ser H, M (según labels), ajustamos la llamada si es necesario.
+    // Si quieres H a la izquierda y M a la derecha, la llamada debe ser:
+    // H (Male) es 'M' en tu objeto de labels, M (Female) es 'F'.
+    // El código original parece haber invertido las etiquetas:
+    // labels: { male: 'H', female: 'M' }
+    // En la llamada a crearCeldaMatricula: crearInputMatricula(..., 'M', ...)${crearInputMatricula(..., 'F', ...)}
+    // El primer input es para 'M' (Hombre) y el segundo para 'F' (Mujer).
+    
+    return `<div class="matricula-pair-horizontal" style="${containerStyle}">
+        ${crearInputMatricula(tipoId, grupoId, 'M', valorM)}
+        ${crearInputMatricula(tipoId, grupoId, 'F', valorF)}
+    </div>`;
 }

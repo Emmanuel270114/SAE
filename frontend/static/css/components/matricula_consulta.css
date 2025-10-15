@@ -264,6 +264,10 @@ h2 {
 /* Contenedor de tabla */
 .tabla-matricula-container {
     padding: 25px;
+    position: relative;
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .tabla-header {
@@ -292,6 +296,13 @@ h2 {
     border-radius: 8px;
     overflow: hidden;
     border: 3px solid #6e0343;
+}
+
+.tabla-matricula-completa {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    position: relative;
 }
 
 .tabla-matricula th {
@@ -439,6 +450,10 @@ td .matricula-pair { flex-wrap:nowrap; }
 /* Fila de totales */
 .totales-row {
     background: linear-gradient(135deg, #6e0343, #a73447) !important;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    box-shadow: 0 -4px 12px rgba(139,38,53,0.15);
 }
 
 .totales-label {
@@ -477,9 +492,12 @@ td .matricula-pair { flex-wrap:nowrap; }
     background: #f8f9fa;
     padding: 25px;
     border-radius: 10px;
-    margin-top: 30px;
+    margin-top: 0;
     text-align: center;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+.actions-after-table {
+    margin-top: 18px;
 }
 
 .btn-primary {
