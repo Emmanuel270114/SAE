@@ -2,6 +2,8 @@ from fastapi import APIRouter, Request, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import json
+from typing import List, Dict, Any
+from fastapi import HTTPException
 
 from backend.core.templates import templates
 from backend.database.connection import get_db
@@ -15,11 +17,13 @@ from backend.database.models.CatModalidad import CatModalidad as Modalidad
 from backend.database.models.CatTurno import CatTurno as Turno
 from backend.database.models.CatGrupoEdad import CatGrupoEdad as Grupo_Edad
 from backend.database.models.CatTipoIngreso import TipoIngreso as Tipo_Ingreso
+from backend.database.models.CatRama import CatRama as Rama
 from backend.services.matricula_service import (
     execute_matricula_sp_with_context,
     get_matricula_metadata_from_sp
 )
 from backend.utils.request import get_request_host
+from backend.database.models.Temp_Matricula import Temp_Matricula
 
 router = APIRouter()
 
@@ -298,9 +302,9 @@ async def debug_sp(request: Request, db: Session = Depends(get_db)):
 
         sql = text("""
             EXEC SP_Consulta_Matricula_Unidad_Academica 
-                @Unidad_Academica = :unidad, 
+                @UUnidad_Academica = :unidad, 
                 @Pperiodo = :periodo, 
-                @nivel = :nivel, 
+                @NNivel = :nivel, 
                 @UUsuario = :usuario, 
                 @HHost = :host
         """)
@@ -422,21 +426,28 @@ async def semestres_map_sp(db: Session = Depends(get_db)):
     except Exception as e:
         return {"error": str(e)}
 
-
-@router.post('/guardar_captura_completa')
+@router.post("/guardar_captura_completa")
 async def guardar_captura_completa(request: Request, db: Session = Depends(get_db)):
     """
-    Endpoint para guardar la captura completa de matrícula con la nueva estructura.
+    Guardar la captura completa de matrícula enviada desde el frontend.
+    Convierte el formato del frontend al modelo Temp_Matricula.
     """
     try:
-        # Obtener datos del usuario logueado desde las cookies
-        id_unidad_academica = int(request.cookies.get("id_unidad_academica", 0))
-        id_nivel = int(request.cookies.get("id_nivel", 0))
-        id_usuario = int(request.cookies.get("id_usuario", 0))
-        
-        # Obtener datos del cuerpo de la petición
         data = await request.json()
+        print(f"\n=== GUARDANDO CAPTURA COMPLETA ===")
+        print(f"Datos recibidos: {data}")
         
+        # Obtener datos del usuario desde cookies
+        nombre_usuario = request.cookies.get("nombre_usuario", "")
+        apellidoP_usuario = request.cookies.get("apellidoP_usuario", "")
+        apellidoM_usuario = request.cookies.get("apellidoM_usuario", "")
+        nombre_completo = " ".join(filter(None, [nombre_usuario, apellidoP_usuario, apellidoM_usuario]))
+        
+        # Obtener usuario y host
+        usuario_sp = nombre_completo or 'sistema'
+        host_sp = get_request_host(request)
+        
+        # Extraer información base
         periodo = data.get('periodo')
         programa = data.get('programa')
         semestre = data.get('semestre')
@@ -444,59 +455,136 @@ async def guardar_captura_completa(request: Request, db: Session = Depends(get_d
         turno = data.get('turno')
         datos_matricula = data.get('datos_matricula', {})
         
-        if not all([periodo, programa, semestre, modalidad, turno]):
-            return {"error": "Faltan datos obligatorios en la solicitud"}
+        if not datos_matricula:
+            return {"error": "No se encontraron datos de matrícula para guardar"}
         
-        # Eliminar registros existentes para esta combinación
-        db.query(Matricula).filter(
-            Matricula.Id_Periodo == periodo,
-            Matricula.Id_Programa == programa,
-            Matricula.Id_Semestre == semestre,
-            Matricula.Id_Modalidad == modalidad,
-            Matricula.Id_Turno == turno,
-            Matricula.Id_Unidad_Academica == id_unidad_academica,
-            Matricula.Id_Nivel == id_nivel
-        ).delete()
+        # Obtener campos válidos del modelo Temp_Matricula
+        valid_fields = set(Temp_Matricula.__annotations__.keys())
+        print(f"Campos válidos Temp_Matricula: {valid_fields}")
         
-        # Insertar nuevos registros
-        registros_creados = 0
-        for key, data_item in datos_matricula.items():
-            tipo_ingreso = int(data_item['tipo_ingreso'])
-            grupo_edad = int(data_item['grupo_edad'])
-            sexo = data_item['sexo']
-            matricula_valor = int(data_item['matricula'])
-            
-            # Determinar Id_Sexo (1 = Masculino, 2 = Femenino)
-            id_sexo = 1 if sexo == 'M' else 2
-            
-            # Crear nuevo registro de matrícula
-            nueva_matricula = Matricula(
-                Id_Periodo=periodo,
-                Id_Unidad_Academica=id_unidad_academica,
-                Id_Programa=programa,
-                Id_Nivel=id_nivel,
-                Id_Semestre=semestre,
-                Id_Modalidad=modalidad,
-                Id_Turno=turno,
-                Id_Tipo_Ingreso=tipo_ingreso,
-                Id_Grupo_Edad=grupo_edad,
-                Id_Sexo=id_sexo,
-                Matricula=matricula_valor,
-                Id_Usuario=id_usuario
-            )
-            
-            db.add(nueva_matricula)
-            registros_creados += 1
+        # Obtener nombres desde la base de datos para mapear IDs
+        programa_obj = db.query(Programas).filter(Programas.Id_Programa == int(programa)).first()
+        modalidad_obj = db.query(Modalidad).filter(Modalidad.Id_Modalidad == int(modalidad)).first()
+        turno_obj = db.query(Turno).filter(Turno.Id_Turno == int(turno)).first()
+        semestre_obj = db.query(Semestre).filter(Semestre.Id_Semestre == int(semestre)).first()
         
-        # Confirmar los cambios
+        # Obtener Nombre_Rama desde el programa
+        rama_obj = None
+        if programa_obj and programa_obj.Id_Rama_Programa:
+            rama_obj = db.query(Rama).filter(Rama.Id_Rama == programa_obj.Id_Rama_Programa).first()
+
+        # Obtener sigla de la unidad académica y nivel desde cookies
+        id_unidad_academica = int(request.cookies.get("id_unidad_academica", 0))
+        id_nivel = int(request.cookies.get("id_nivel", 0))
+        
+        unidad_obj = db.query(Unidad_Academica).filter(
+            Unidad_Academica.Id_Unidad_Academica == id_unidad_academica
+        ).first()
+        
+        nivel_obj = db.query(Nivel).filter(Nivel.Id_Nivel == id_nivel).first()
+        
+        # Obtener mapeos de grupos de edad y tipos de ingreso para convertir a nombres
+        grupos_edad_db = db.query(Grupo_Edad).all()
+        grupos_edad_map = {str(g.Id_Grupo_Edad): g.Grupo_Edad for g in grupos_edad_db}
+        
+        tipos_ingreso_db = db.query(Tipo_Ingreso).all()
+        tipos_ingreso_map = {str(t.Id_Tipo_Ingreso): t.Tipo_de_Ingreso for t in tipos_ingreso_db}
+        
+        registros_insertados = 0
+        
+        # Procesar cada registro de matrícula
+        for key, dato in datos_matricula.items():
+            # Mapear grupo_edad ID a nombre completo
+            grupo_edad_id = str(dato.get('grupo_edad', ''))
+            grupo_edad_nombre = grupos_edad_map.get(grupo_edad_id, grupo_edad_id)
+            
+            # Mapear tipo_ingreso ID a nombre completo
+            tipo_ingreso_id = str(dato.get('tipo_ingreso', ''))
+            tipo_ingreso_nombre = tipos_ingreso_map.get(tipo_ingreso_id, tipo_ingreso_id)
+            
+            # Convertir sexo de M/F a Hombre/Mujer
+            sexo_corto = dato.get('sexo', '')
+            if sexo_corto == 'M':
+                sexo_completo = 'Hombre'
+            elif sexo_corto == 'F':
+                sexo_completo = 'Mujer'
+            else:
+                sexo_completo = sexo_corto
+            
+            # Construir registro para Temp_Matricula
+            registro = {
+                'Periodo': periodo,
+                'Sigla': unidad_obj.Sigla if unidad_obj else 'UNK',
+                'Nombre_Programa': programa_obj.Nombre_Programa if programa_obj else '',
+                'Nombre_Rama': rama_obj.Nombre_Rama if rama_obj else 'NULL',
+                'Nivel': nivel_obj.Nivel if nivel_obj else '',
+                'Modalidad': modalidad_obj.Modalidad if modalidad_obj else '',
+                'Turno': turno_obj.Turno if turno_obj else '',
+                'Semestre': semestre_obj.Semestre if semestre_obj else '',
+                'Grupo_Edad': grupo_edad_nombre,
+                'Tipo_Ingreso': tipo_ingreso_nombre,
+                'Sexo': sexo_completo,
+                'Matricula': int(dato.get('matricula', 0))
+            }
+            
+            # Filtrar solo campos válidos
+            filtered = {k: v for k, v in registro.items() if k in valid_fields}
+            
+            if filtered and filtered.get('Matricula', 0) > 0:
+                temp_matricula = Temp_Matricula(**filtered)
+                db.add(temp_matricula)
+                registros_insertados += 1
+                print(f"Registro agregado: {filtered}")
+        
         db.commit()
         
         return {
-            "mensaje": f"Matrícula guardada exitosamente. Se crearon {registros_creados} registros.",
-            "registros_creados": registros_creados
+            "mensaje": f"Matrícula guardada exitosamente. {registros_insertados} registros insertados.",
+            "registros_insertados": registros_insertados
         }
         
     except Exception as e:
         db.rollback()
-        return {"error": f"Error al guardar la matrícula: {str(e)}"}
+        print(f"ERROR al guardar captura completa: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error al guardar la matrícula: {str(e)}")
+
+@router.post("/guardar_progreso")
+def guardar_progreso(datos: List[Dict[str, Any]], db: Session = Depends(get_db)):
+    """
+    Guardar el progreso de la matrícula en la tabla Temp_Matricula.
+    Args:
+        datos: Lista de diccionarios con los datos de la matrícula.
+        db: Sesión de base de datos.
+    Returns:
+        Mensaje de éxito o error.
+    """
+    try:
+        # Obtener campos válidos desde el modelo Temp_Matricula
+        valid_fields = set()
+        # Intentar leer anotaciones (Python typing) si están presentes
+        try:
+            valid_fields = set(Temp_Matricula.__annotations__.keys())
+        except Exception:
+            # Fallback: leer atributos públicos definidos en la clase
+            valid_fields = {k for k in dir(Temp_Matricula) if not k.startswith('_')}
+
+        print(f"Campos válidos Temp_Matricula: {valid_fields}")
+
+        for dato in datos:
+            # Filtrar solo las claves que estén en el modelo
+            filtered = {k: v for k, v in dato.items() if k in valid_fields}
+            if not filtered:
+                # Si no hay campos válidos, saltar
+                print(f"Advertencia: entrada sin campos válidos será ignorada: {dato}")
+                continue
+            temp_matricula = Temp_Matricula(**filtered)
+            db.add(temp_matricula)
+
+        db.commit()
+        return {"message": "Progreso guardado exitosamente."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al guardar el progreso: {str(e)}")
 
