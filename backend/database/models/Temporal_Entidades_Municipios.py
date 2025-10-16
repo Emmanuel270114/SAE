@@ -4,7 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 
 class temporal_Entidades_Municipios(Base):
-    __tablename__ = 'temporal_entidades_municipios'
+    __tablename__ = 'Entidades_Municipios'
 
     IdEntidadMunicipio: Mapped[str] = mapped_column(String(50), primary_key=True, autoincrement=True)
     IdEntidad: Mapped[str] = mapped_column(String(50), nullable=False)
