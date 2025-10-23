@@ -46,7 +46,7 @@ async def recuperar_password(username: str = Form(...), email: str = Form(...), 
                     host = client_ip
             else:
                 host = "sistema"
-            registrar_bitacora(db, id_usuario=0, id_modulo=1, id_periodo=9, accion=f"Reset password solicitado para usuario {username}", host=host)
+            registrar_bitacora(db, id_usuario=0, id_modulo=1, id_periodo=7, accion=f"Reset password solicitado para usuario {username}", host=host)
         except Exception:
             pass
         return {"mensaje": "Si los datos son correctos, se envió una nueva contraseña al correo registrado."}
@@ -90,7 +90,7 @@ async def cambiar_password(
                     host = client_ip
             else:
                 host = "sistema"
-            registrar_bitacora(db, id_usuario=id_usuario_int, id_modulo=1, id_periodo=9, accion="Cambio de contraseña exitoso", host=host)
+            registrar_bitacora(db, id_usuario=id_usuario_int, id_modulo=1, id_periodo=7, accion="Cambio de contraseña exitoso", host=host)
         except Exception:
             pass
         return {"mensaje": "Contraseña actualizada."}
