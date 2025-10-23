@@ -4,6 +4,7 @@ from sqlalchemy import text
 import json
 from typing import List, Dict, Any
 from fastapi import HTTPException
+from datetime import datetime
 
 from backend.core.templates import templates
 from backend.database.connection import get_db
@@ -18,6 +19,7 @@ from backend.database.models.CatTurno import CatTurno as Turno
 from backend.database.models.CatGrupoEdad import CatGrupoEdad as Grupo_Edad
 from backend.database.models.CatTipoIngreso import TipoIngreso as Tipo_Ingreso
 from backend.database.models.CatRama import CatRama as Rama
+from backend.database.models.CatSemaforo import CatSemaforo
 from backend.services.matricula_service import (
     execute_matricula_sp_with_context,
     get_matricula_metadata_from_sp
@@ -26,6 +28,10 @@ from backend.utils.request import get_request_host
 from backend.database.models.Temp_Matricula import Temp_Matricula
 
 router = APIRouter()
+
+# Constantes globales
+PERIODO_DEFAULT_ID = 7
+PERIODO_DEFAULT_LITERAL = '2025-2026/1'
 
 
 @router.get('/consulta')
@@ -66,10 +72,29 @@ async def captura_matricula_sp_view(request: Request, db: Session = Depends(get_
         Unidad_Academica.Id_Unidad_Academica == id_unidad_academica
     ).all()
     
-    # Definir periodo por defecto
-    periodo_default_id = 9
-    periodo_default_literal = '2025-2026/1'
+    # Usar constantes globales para periodo por defecto
+    periodo_default_id = PERIODO_DEFAULT_ID
+    periodo_default_literal = PERIODO_DEFAULT_LITERAL
     unidad_actual = unidades_academicas[0] if unidades_academicas else None
+
+    # Obtener datos del semáforo para las pestañas (primeros 3 registros)
+    semaforo_estados = db.query(CatSemaforo).filter(CatSemaforo.Id_Semaforo.in_([1, 2, 3])).order_by(CatSemaforo.Id_Semaforo).all()
+    semaforo_data = []
+    for estado in semaforo_estados:
+        # Asegurar que el color tenga el símbolo # al inicio
+        color = estado.Color_Semaforo
+        if color and not color.startswith('#'):
+            color = f"#{color}"
+        
+        semaforo_data.append({
+            'id': estado.Id_Semaforo,
+            'descripcion': estado.Descripcion_Semaforo,
+            'color': color
+        })
+    
+    print(f"📊 Estados del semáforo cargados: {len(semaforo_data)}")
+    for estado in semaforo_data:
+        print(f"  - ID {estado['id']}: {estado['descripcion']} ({estado['color']})")
 
     # Obtener usuario y host para el SP
     usuario_sp = nombre_completo or 'sistema'
@@ -186,7 +211,8 @@ async def captura_matricula_sp_view(request: Request, db: Session = Depends(get_
         "semestres_map_json": semestres_map_json,
         "turnos": turnos_formatted,
         "grupos_edad": grupos_edad_formatted,
-        "tipos_ingreso": tipos_ingreso_formatted
+        "tipos_ingreso": tipos_ingreso_formatted,
+        "semaforo_estados": semaforo_data
     })
 
 # Endpoint para obtener datos existentes usando SP
@@ -448,12 +474,31 @@ async def guardar_captura_completa(request: Request, db: Session = Depends(get_d
         host_sp = get_request_host(request)
         
         # Extraer información base
-        periodo = data.get('periodo')
+        periodo_input = data.get('periodo')
         programa = data.get('programa')
         semestre = data.get('semestre')
         modalidad = data.get('modalidad')
         turno = data.get('turno')
         datos_matricula = data.get('datos_matricula', {})
+        
+        # Convertir período de ID a formato literal para guardar en Temp_Matricula
+        if periodo_input:
+            if str(periodo_input).isdigit():
+                # Buscar el período por ID
+                periodo_obj = db.query(Periodo).filter(Periodo.Id_Periodo == int(periodo_input)).first()
+                if periodo_obj:
+                    periodo = periodo_obj.Periodo  # '2025-2026/1'
+                    print(f"🔄 Período convertido de ID {periodo_input} → '{periodo}' para Temp_Matricula")
+                else:
+                    print(f"⚠️ ID de período {periodo_input} no encontrado, usando default")
+                    periodo = PERIODO_DEFAULT_LITERAL
+            else:
+                # Ya es formato literal
+                periodo = str(periodo_input)
+                print(f"✅ Período ya en formato literal: '{periodo}'")
+        else:
+            periodo = PERIODO_DEFAULT_LITERAL
+            print(f"📌 Usando período por defecto: '{periodo}'")
         
         if not datos_matricula:
             return {"error": "No se encontraron datos de matrícula para guardar"}
@@ -491,15 +536,53 @@ async def guardar_captura_completa(request: Request, db: Session = Depends(get_d
         tipos_ingreso_map = {str(t.Id_Tipo_Ingreso): t.Tipo_de_Ingreso for t in tipos_ingreso_db}
         
         registros_insertados = 0
+        registros_rechazados = 0
+        
+        # Limpiar la sesión para evitar conflictos de identidad
+        db.expunge_all()
+        
+        # Obtener el semestre seleccionado como número
+        semestre_numero = None
+        if semestre_obj:
+            try:
+                # Extraer el número del semestre (ej: "1" de "Primer Semestre", "2" de "Segundo Semestre")
+                semestre_text = semestre_obj.Semestre.lower()
+                if "primer" in semestre_text or semestre_text == "1":
+                    semestre_numero = 1
+                elif "segundo" in semestre_text or semestre_text == "2":
+                    semestre_numero = 2
+                elif "tercer" in semestre_text or semestre_text == "3":
+                    semestre_numero = 3
+                # Agregar más semestres según sea necesario
+            except:
+                pass
+        
+        print(f"Semestre detectado: {semestre_numero} (de: {semestre_obj.Semestre if semestre_obj else 'N/A'})")
         
         # Procesar cada registro de matrícula
         for key, dato in datos_matricula.items():
+            # Validación de reglas de semestre - SEGURIDAD BACKEND
+            tipo_ingreso_id = str(dato.get('tipo_ingreso', ''))
+            
+            # Aplicar reglas de validación por semestre
+            if semestre_numero is not None and tipo_ingreso_id:
+                # Regla 1: Semestre 1 no puede tener "Reingreso" (ID: 2)
+                if semestre_numero == 1 and tipo_ingreso_id == "2":
+                    print(f"VALIDACIÓN RECHAZADA: Semestre 1 no puede tener Reingreso (tipo_ingreso: {tipo_ingreso_id})")
+                    registros_rechazados += 1
+                    continue  # Saltar este registro
+                
+                # Regla 2: Semestres diferentes a 1 no pueden tener "Nuevo Ingreso" (ID: 1)
+                if semestre_numero != 1 and tipo_ingreso_id == "1":
+                    print(f"VALIDACIÓN RECHAZADA: Semestre {semestre_numero} no puede tener Nuevo Ingreso (tipo_ingreso: {tipo_ingreso_id})")
+                    registros_rechazados += 1
+                    continue  # Saltar este registro
+            
             # Mapear grupo_edad ID a nombre completo
             grupo_edad_id = str(dato.get('grupo_edad', ''))
             grupo_edad_nombre = grupos_edad_map.get(grupo_edad_id, grupo_edad_id)
             
             # Mapear tipo_ingreso ID a nombre completo
-            tipo_ingreso_id = str(dato.get('tipo_ingreso', ''))
             tipo_ingreso_nombre = tipos_ingreso_map.get(tipo_ingreso_id, tipo_ingreso_id)
             
             # Convertir sexo de M/F a Hombre/Mujer
@@ -531,16 +614,26 @@ async def guardar_captura_completa(request: Request, db: Session = Depends(get_d
             filtered = {k: v for k, v in registro.items() if k in valid_fields}
             
             if filtered and filtered.get('Matricula', 0) > 0:
+                # Usar merge() para manejar automáticamente INSERT/UPDATE
                 temp_matricula = Temp_Matricula(**filtered)
-                db.add(temp_matricula)
+                merged_obj = db.merge(temp_matricula)
+                
                 registros_insertados += 1
-                print(f"Registro agregado: {filtered}")
+                print(f"Registro procesado (merge): {filtered}")
         
         db.commit()
         
+        # Construir mensaje informativo
+        mensaje_base = f"Matrícula procesada. {registros_insertados} registros guardados"
+        if registros_rechazados > 0:
+            mensaje_base += f", {registros_rechazados} registros rechazados por validación de semestre"
+        mensaje_base += "."
+        
         return {
-            "mensaje": f"Matrícula guardada exitosamente. {registros_insertados} registros insertados.",
-            "registros_insertados": registros_insertados
+            "mensaje": mensaje_base,
+            "registros_insertados": registros_insertados,
+            "registros_rechazados": registros_rechazados,
+            "validacion_aplicada": semestre_numero is not None
         }
         
     except Exception as e:
@@ -572,6 +665,9 @@ def guardar_progreso(datos: List[Dict[str, Any]], db: Session = Depends(get_db))
 
         print(f"Campos válidos Temp_Matricula: {valid_fields}")
 
+        # Limpiar la sesión para evitar conflictos de identidad
+        db.expunge_all()
+
         for dato in datos:
             # Filtrar solo las claves que estén en el modelo
             filtered = {k: v for k, v in dato.items() if k in valid_fields}
@@ -579,12 +675,345 @@ def guardar_progreso(datos: List[Dict[str, Any]], db: Session = Depends(get_db))
                 # Si no hay campos válidos, saltar
                 print(f"Advertencia: entrada sin campos válidos será ignorada: {dato}")
                 continue
+            
+            # Usar merge() para manejar automáticamente INSERT/UPDATE
             temp_matricula = Temp_Matricula(**filtered)
-            db.add(temp_matricula)
+            merged_obj = db.merge(temp_matricula)
+            print(f"Registro procesado (merge) en guardar_progreso: {filtered}")
 
         db.commit()
         return {"message": "Progreso guardado exitosamente."}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al guardar el progreso: {str(e)}")
+
+@router.post("/actualizar_matricula")
+async def actualizar_matricula(request: Request, db: Session = Depends(get_db)):
+    """
+    Ejecuta el SP SP_Actualiza_Matricula_Por_Unidad_Academica para actualizar 
+    la tabla Matricula con los datos de Temp_Matricula y luego limpiar la tabla temporal.
+    """
+    try:
+        # Obtener datos del usuario desde cookies
+        nombre_usuario = request.cookies.get("nombre_usuario", "")
+        apellidoP_usuario = request.cookies.get("apellidoP_usuario", "")
+        apellidoM_usuario = request.cookies.get("apellidoM_usuario", "")
+        nombre_completo = " ".join(filter(None, [nombre_usuario, apellidoP_usuario, apellidoM_usuario]))
+        
+        # Obtener usuario y host
+        usuario_sp = nombre_completo or 'sistema'
+        host_sp = get_request_host(request)
+        
+        # Obtener período desde el request o usar el período por defecto
+        data = await request.json()
+        periodo_input = data.get('periodo')
+        
+        # SIEMPRE convertir a formato literal para el SP
+        if periodo_input:
+            # Si es un ID numérico (como '7'), convertir a literal
+            if str(periodo_input).isdigit():
+                # Buscar el período por ID en la base de datos
+                periodo_obj = db.query(Periodo).filter(Periodo.Id_Periodo == int(periodo_input)).first()
+                if periodo_obj:
+                    periodo = periodo_obj.Periodo  # '2025-2026/1'
+                    print(f"🔄 Convertido ID {periodo_input} → '{periodo}'")
+                else:
+                    print(f"⚠️ ID de período {periodo_input} no encontrado, usando default")
+                    periodo = PERIODO_DEFAULT_LITERAL
+            else:
+                # Ya es formato literal, usarlo directamente
+                periodo = str(periodo_input)
+                print(f"✅ Período ya en formato literal: '{periodo}'")
+        else:
+            # No viene período, usar el default literal
+            periodo = PERIODO_DEFAULT_LITERAL
+            print(f"📌 Usando período por defecto: '{periodo}'")
+            
+        nivel = request.cookies.get("nombre_nivel", "")  # Obtener el nombre del nivel desde cookies
+        
+        if not periodo:
+            raise HTTPException(status_code=400, detail="Período es requerido para actualizar la matrícula")
+        
+        print(f"\n=== ACTUALIZANDO MATRÍCULA ===")
+        print(f"Usuario: {usuario_sp}")
+        print(f"Período: {periodo}")
+        print(f"Host: {host_sp}")
+        print(f"Nivel: {nivel}")
+        print(f"ID Nivel desde cookies: {request.cookies.get('id_nivel', 'No encontrado')}")
+        print(f"Nombre Nivel desde cookies: {request.cookies.get('nombre_nivel', 'No encontrado')}")
+        print(f"Cookies disponibles: {list(request.cookies.keys())}")
+        
+        # Verificar que hay datos en Temp_Matricula antes de actualizar
+        temp_count = db.query(Temp_Matricula).count()
+        if temp_count == 0:
+            return {
+                "warning": "No hay datos en Temp_Matricula para actualizar",
+                "registros_temp": 0,
+                "registros_actualizados": 0
+            }
+        
+        print(f"Registros en Temp_Matricula: {temp_count}")
+        
+        # DIAGNÓSTICO: Mostrar contenido de Temp_Matricula antes de actualizar
+        print(f"\n=== DIAGNÓSTICO TEMP_MATRICULA ===")
+        temp_records = db.query(Temp_Matricula).all()
+        for i, record in enumerate(temp_records, 1):
+            print(f"Registro {i}:")
+            print(f"  Periodo: '{record.Periodo}'")
+            print(f"  Sigla: '{record.Sigla}'")
+            print(f"  Nombre_Programa: '{record.Nombre_Programa}'")
+            print(f"  Nombre_Rama: '{record.Nombre_Rama}'")
+            print(f"  Nivel: '{record.Nivel}'")
+            print(f"  Modalidad: '{record.Modalidad}'")
+            print(f"  Turno: '{record.Turno}'")
+            print(f"  Semestre: '{record.Semestre}'")
+            print(f"  Grupo_Edad: '{record.Grupo_Edad}'")
+            print(f"  Tipo_Ingreso: '{record.Tipo_Ingreso}'")
+            print(f"  Sexo: '{record.Sexo}'")
+            print(f"  Matricula: {record.Matricula}")
+            print("-" * 40)
+        
+        # DIAGNÓSTICO: Verificar si existen registros en Matricula que coincidan
+        print(f"\n=== VERIFICANDO COINCIDENCIAS EN MATRICULA ===")
+        matricula_count = db.query(Matricula).count()
+        print(f"Total registros en Matricula: {matricula_count}")
+        
+        # Buscar un registro de ejemplo para ver si hay coincidencias
+        if temp_records:
+            temp_ejemplo = temp_records[0]
+            print(f"\nBuscando coincidencias para el primer registro de Temp_Matricula:")
+            
+            # Verificar periodo
+            periodo_match = db.query(Periodo).filter(Periodo.Periodo == temp_ejemplo.Periodo).first()
+            print(f"Periodo '{temp_ejemplo.Periodo}' encontrado: {periodo_match is not None}")
+            if periodo_match:
+                print(f"  ID Periodo: {periodo_match.Id_Periodo}")
+            
+            # Verificar unidad académica
+            unidad_match = db.query(Unidad_Academica).filter(Unidad_Academica.Sigla == temp_ejemplo.Sigla).first()
+            print(f"Unidad '{temp_ejemplo.Sigla}' encontrada: {unidad_match is not None}")
+            if unidad_match:
+                print(f"  ID Unidad: {unidad_match.Id_Unidad_Academica}")
+            
+            # Verificar programa
+            programa_match = db.query(Programas).filter(Programas.Nombre_Programa == temp_ejemplo.Nombre_Programa).first()
+            print(f"Programa '{temp_ejemplo.Nombre_Programa}' encontrado: {programa_match is not None}")
+            if programa_match:
+                print(f"  ID Programa: {programa_match.Id_Programa}")
+        
+        print(f"=================================")
+        
+        print(f"\n=== PARÁMETROS DEL SP ===")
+        print(f"@UUsuario = '{usuario_sp}' (tipo: {type(usuario_sp).__name__})")
+        print(f"@PPeriodo = '{periodo}' (tipo: {type(periodo).__name__})")
+        print(f"@HHost = '{host_sp}' (tipo: {type(host_sp).__name__})")
+        print(f"@NNivel = '{nivel}' (tipo: {type(nivel).__name__})")
+        print(f"========================")
+        
+        # Ejecutar el stored procedure
+        try:
+            cursor = db.execute(text("""
+                EXEC [dbo].[SP_Actualiza_Matricula_Por_Unidad_Academica] 
+                    @UUsuario = :usuario,
+                    @PPeriodo = :periodo,
+                    @HHost = :host,
+                    @NNivel = :nivel
+            """), {
+                'usuario': usuario_sp,
+                'periodo': periodo,
+                'host': host_sp,
+                'nivel': nivel
+            })
+            
+            # Intentar obtener resultados del SP (mensajes, errores, etc.)
+            try:
+                result = cursor.fetchall()
+                if result:
+                    print(f"Resultado del SP: {result}")
+            except Exception as e:
+                print(f"No hay resultados del SP (normal): {e}")
+            
+            db.commit()
+            print("SP ejecutado exitosamente")
+            
+        except Exception as sp_error:
+            print(f"ERROR al ejecutar SP: {sp_error}")
+            db.rollback()
+            raise
+        
+        # Verificar que Temp_Matricula quedó vacía (el SP hace TRUNCATE)
+        temp_count_after = db.query(Temp_Matricula).count()
+        
+        print(f"Registros en Temp_Matricula después: {temp_count_after}")
+        print("=== ACTUALIZACIÓN COMPLETADA ===")
+        
+        return {
+            "mensaje": "Matrícula actualizada exitosamente",
+            "registros_procesados": temp_count,
+            "temp_matricula_limpiada": temp_count_after == 0,
+            "usuario": usuario_sp,
+            "periodo": periodo,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"ERROR al actualizar matrícula: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error al actualizar la matrícula: {str(e)}")
+
+@router.get("/diagnostico_sp")
+async def diagnostico_sp(request: Request, db: Session = Depends(get_db)):
+    """
+    Endpoint de diagnóstico para analizar por qué no se actualiza la matrícula.
+    Simula los JOINs del SP sin hacer cambios.
+    """
+    try:
+        print(f"\n{'='*60}")
+        print(f"DIAGNÓSTICO DETALLADO DEL SP")
+        print(f"{'='*60}")
+        
+        # Contar registros en las tablas principales
+        temp_count = db.query(Temp_Matricula).count()
+        matricula_count = db.query(Matricula).count()
+        
+        print(f"Registros en Temp_Matricula: {temp_count}")
+        print(f"Registros en Matricula: {matricula_count}")
+        
+        if temp_count == 0:
+            return {"error": "No hay datos en Temp_Matricula para diagnosticar"}
+        
+        # Obtener todos los registros de Temp_Matricula
+        temp_records = db.query(Temp_Matricula).all()
+        
+        diagnostico_resultados = []
+        
+        for i, tmp in enumerate(temp_records, 1):
+            print(f"\n--- DIAGNÓSTICO REGISTRO {i} ---")
+            print(f"Temp_Matricula record: {tmp.Periodo}, {tmp.Sigla}, {tmp.Nombre_Programa}")
+            
+            resultado = {
+                'registro': i,
+                'temp_data': {
+                    'Periodo': tmp.Periodo,
+                    'Sigla': tmp.Sigla,
+                    'Nombre_Programa': tmp.Nombre_Programa,
+                    'Nombre_Rama': tmp.Nombre_Rama,
+                    'Nivel': tmp.Nivel,
+                    'Modalidad': tmp.Modalidad,
+                    'Turno': tmp.Turno,
+                    'Semestre': tmp.Semestre,
+                    'Grupo_Edad': tmp.Grupo_Edad,
+                    'Tipo_Ingreso': tmp.Tipo_Ingreso,
+                    'Sexo': tmp.Sexo,
+                    'Matricula': tmp.Matricula
+                },
+                'joins_encontrados': {},
+                'joins_faltantes': [],
+                'posibles_coincidencias': 0
+            }
+            
+            # Verificar cada JOIN del SP
+            
+            # 1. Cat_Periodo
+            periodo_obj = db.query(Periodo).filter(Periodo.Periodo == tmp.Periodo).first()
+            if periodo_obj:
+                resultado['joins_encontrados']['Cat_Periodo'] = {
+                    'id': periodo_obj.Id_Periodo,
+                    'valor': periodo_obj.Periodo
+                }
+                print(f"✅ Periodo encontrado: ID={periodo_obj.Id_Periodo}")
+            else:
+                resultado['joins_faltantes'].append('Cat_Periodo')
+                print(f"❌ Periodo '{tmp.Periodo}' NO encontrado")
+            
+            # 2. Cat_Unidad_Academica
+            unidad_obj = db.query(Unidad_Academica).filter(Unidad_Academica.Sigla == tmp.Sigla).first()
+            if unidad_obj:
+                resultado['joins_encontrados']['Cat_Unidad_Academica'] = {
+                    'id': unidad_obj.Id_Unidad_Academica,
+                    'valor': unidad_obj.Sigla
+                }
+                print(f"✅ Unidad encontrada: ID={unidad_obj.Id_Unidad_Academica}")
+            else:
+                resultado['joins_faltantes'].append('Cat_Unidad_Academica')
+                print(f"❌ Unidad '{tmp.Sigla}' NO encontrada")
+            
+            # 3. Cat_Programas
+            programa_obj = db.query(Programas).filter(Programas.Nombre_Programa == tmp.Nombre_Programa).first()
+            if programa_obj:
+                resultado['joins_encontrados']['Cat_Programas'] = {
+                    'id': programa_obj.Id_Programa,
+                    'valor': programa_obj.Nombre_Programa
+                }
+                print(f"✅ Programa encontrado: ID={programa_obj.Id_Programa}")
+            else:
+                resultado['joins_faltantes'].append('Cat_Programas')
+                print(f"❌ Programa '{tmp.Nombre_Programa}' NO encontrado")
+            
+            # Continuar con el resto de JOINs...
+            # 4. Cat_Rama
+            rama_obj = db.query(Rama).filter(Rama.Nombre_Rama == tmp.Nombre_Rama).first()
+            if rama_obj:
+                resultado['joins_encontrados']['Cat_Rama'] = {
+                    'id': rama_obj.Id_Rama,
+                    'valor': rama_obj.Nombre_Rama
+                }
+                print(f"✅ Rama encontrada: ID={rama_obj.Id_Rama}")
+            else:
+                resultado['joins_faltantes'].append('Cat_Rama')
+                print(f"❌ Rama '{tmp.Nombre_Rama}' NO encontrada")
+            
+            # Si todos los JOINs principales son exitosos, buscar coincidencias en Matricula
+            if all(key in resultado['joins_encontrados'] for key in ['Cat_Periodo', 'Cat_Unidad_Academica', 'Cat_Programas', 'Cat_Rama']):
+                # Simular la condición WHERE del SP
+                matricula_matches = db.query(Matricula).filter(
+                    Matricula.Id_Periodo == resultado['joins_encontrados']['Cat_Periodo']['id'],
+                    Matricula.Id_Unidad_Academica == resultado['joins_encontrados']['Cat_Unidad_Academica']['id'],
+                    Matricula.Id_Programa == resultado['joins_encontrados']['Cat_Programas']['id'],
+                    Matricula.Id_Rama == resultado['joins_encontrados']['Cat_Rama']['id']
+                ).count()
+                
+                resultado['posibles_coincidencias'] = matricula_matches
+                print(f"🎯 Coincidencias potenciales en Matricula: {matricula_matches}")
+            
+            diagnostico_resultados.append(resultado)
+        
+        print(f"{'='*60}")
+        
+        return {
+            "total_temp_records": temp_count,
+            "total_matricula_records": matricula_count,
+            "diagnostico_por_registro": diagnostico_resultados,
+            "resumen": {
+                "registros_con_todos_joins": len([r for r in diagnostico_resultados if not r['joins_faltantes']]),
+                "registros_con_coincidencias": len([r for r in diagnostico_resultados if r['posibles_coincidencias'] > 0])
+            }
+        }
+        
+    except Exception as e:
+        print(f"ERROR en diagnóstico: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e)}
+
+@router.post("/limpiar_temp_matricula")
+async def limpiar_temp_matricula(db: Session = Depends(get_db)):
+    """
+    Endpoint temporal para limpiar la tabla Temp_Matricula.
+    Útil para testing cuando hay datos con formato incorrecto.
+    """
+    try:
+        count_before = db.query(Temp_Matricula).count()
+        db.query(Temp_Matricula).delete()
+        db.commit()
+        
+        return {
+            "mensaje": f"Tabla Temp_Matricula limpiada exitosamente",
+            "registros_eliminados": count_before
+        }
+    except Exception as e:
+        db.rollback()
+        return {"error": f"Error al limpiar Temp_Matricula: {str(e)}"}
 

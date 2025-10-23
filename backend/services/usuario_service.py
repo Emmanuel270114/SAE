@@ -53,7 +53,7 @@ def reset_password(db: Session, username: str, email: str, request = None) -> bo
             import socket
             
             id_modulo = 1  # Módulo de seguridad
-            id_periodo = 9  # Periodo por defecto
+            id_periodo = 7  # Periodo por defecto
             accion = f"Nueva contraseña temporal generada para {user.Usuario}"
 
             # Obtener el hostname del cliente (reverse DNS). Si falla, usar IP.
@@ -110,7 +110,7 @@ def change_password(db: Session, user_id: int, current_password: str, new_passwo
         import socket
         
         id_modulo = 1  # Módulo de seguridad
-        id_periodo = 9  # Periodo por defecto
+        id_periodo = 7  # Periodo por defecto
         accion = f"Usuario cambió de contraseña temporal a personal"
 
         # Obtener el hostname del cliente (reverse DNS). Si falla, usar IP.

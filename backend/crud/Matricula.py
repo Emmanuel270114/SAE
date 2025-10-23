@@ -128,7 +128,7 @@ def execute_sp_consulta_matricula(
         sql = text("""
             EXEC SP_Consulta_Matricula_Unidad_Academica 
                 @UUnidad_Academica = :unidad, 
-                @Pperiodo = :periodo, 
+                @PPeriodo = :periodo, 
                 @NNivel = :nivel, 
                 @UUsuario = :usuario, 
                 @HHost = :host

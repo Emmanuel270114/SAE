@@ -1,11 +1,13 @@
 {% extends 'base.html' %}
 
-{% block title %}Unidad Academica{% endblock %}
+{% block title %}Domicilios{% endblock %}
 
 {% block styles %}
     <link rel="stylesheet" href="/static/css/components/header.css">
+    <link rel="stylesheet" href="/static/css/components/forms.css">
     <link rel="stylesheet" href="/static/css/components/filters.css">
     <link rel="stylesheet" href="/static/css/components/tables.css">
+    <link rel="stylesheet" href="/static/css/components/modal.css">
 {% endblock %}
 
 {% block content %}
@@ -22,8 +24,8 @@
         <label for="filtro-ua">Filtrar por Unidad Académica:</label>
         <select id="filtro-ua" class="input-form">
             <option value="">Todas las Unidades Académicas</option>
-            {% for d in domicilios|unique(attribute='Sigla') %}
-            <option value="{{ d.Sigla }}">{{ d.Sigla }}</option>
+            {% for d in domicilios|unique(attribute='ua') %}
+            <option value="{{ d.ua }}">{{ d.ua }}</option>
             {% endfor %}
         </select>
     </div>
@@ -44,33 +46,23 @@
     ">
         <thead style="position: sticky; top: 0; background-color: #f4f4f4; z-index: 1;">
             <tr>
-                <th style="padding: 6px;">Sigla</th>
-                <th style="padding: 6px;">Nombre</th>
-                <th style="padding: 6px;">Clave</th>
-                <th style="padding: 6px;">Director</th>
-                <th style="padding: 6px;">Rama</th>
-                <th style="padding: 6px;">Calle</th>
-                <th style="padding: 6px;">Colonia</th>
-                <th style="padding: 6px;">C.P.</th>
-                <th style="padding: 6px;">Localidad</th>
+                <th style="padding: 6px;">Unidad Académica</th>
                 <th style="padding: 6px;">Municipio</th>
-                <th style="padding: 6px;">Entidad</th>
+                <th style="padding: 6px;">Calle</th>
+                <th style="padding: 6px;">Número</th>
+                <th style="padding: 6px;">Colonia</th>
+                <th style="padding: 6px;">Código Postal</th>
             </tr>
         </thead>
         <tbody>
             {% for d in domicilios %}
             <tr class="fila-usuario" style="border-top: 1px solid #ddd;">
-                <td style="padding: 4px;">{{ d.Sigla }}</td>
-                <td style="padding: 4px;">{{ d.Nombre }}</td>
-                <td style="padding: 4px;">{{ d.Clave }}</td>
-                <td style="padding: 4px;">{{ d.Director }}</td>
-                <td style="padding: 4px;">{{ d.Nombre_Rama }}</td>
-                <td style="padding: 4px;">{{ d.Calle }}</td>
-                <td style="padding: 4px;">{{ d.Colonia }}</td>
-                <td style="padding: 4px;">{{ d.CP }}</td>
-                <td style="padding: 4px;">{{ d.Nombre_Localidad }}</td>
-                <td style="padding: 4px;">{{ d.Nombre_Municipio }}</td>
-                <td style="padding: 4px;">{{ d.Nombre_Entidad }}</td>
+                <td style="padding: 4px;">{{ d.ua }}</td>
+                <td style="padding: 4px;">{{ d.municipio }}</td>
+                <td style="padding: 4px;">{{ d.calle }}</td>
+                <td style="padding: 4px;">{{ d.numero }}</td>
+                <td style="padding: 4px;">{{ d.colonia }}</td>
+                <td style="padding: 4px;">{{ d.cp }}</td>
             </tr>
             {% endfor %}
         </tbody>

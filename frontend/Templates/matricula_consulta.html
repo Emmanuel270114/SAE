@@ -109,6 +109,41 @@
                 </button>
             </div>
         </div>
+        
+        <!-- Título indicando que semestre selecciono para llenar, dependiendo de la pestaña en la que esté -->
+        <h2 id="semestre-titulo" style="margin:6px 0 8px 10px; display:center; font-size:30px; font-weight:600; color:#6e0343;">
+            Semestre <span id="semestre-num">1</span>
+        </h2>
+
+        <script>
+            // Actualiza el título cuando cambie el input oculto de semestre
+            (function(){
+                function actualizarTituloSemestre() {
+                    const input = document.getElementById('semestre');
+                    const span = document.getElementById('semestre-num');
+                    if (!span) return;
+                    span.textContent = input && input.value ? input.value : '1';
+                }
+
+                document.addEventListener('DOMContentLoaded', function() {
+                    actualizarTituloSemestre();
+                    const input = document.getElementById('semestre');
+                    if (input) {
+                        input.addEventListener('change', actualizarTituloSemestre);
+                        input.addEventListener('input', actualizarTituloSemestre);
+                        // Poll como fallback por si se cambia .value sin disparar eventos
+                        let last = input.value;
+                        const poll = setInterval(() => {
+                            if (input.value !== last) {
+                                last = input.value;
+                                actualizarTituloSemestre();
+                            }
+                        }, 300);
+                        window.addEventListener('beforeunload', () => clearInterval(poll));
+                    }
+                });
+            })();
+        </script>
 
         <div class="tabla-matricula-container">
             <div class="tabla-header">
@@ -135,6 +170,9 @@
             <button type="button" class="btn-primary" onclick="guardarMatricula()">
                 💾 Guardar Progreso
             </button>
+            <button type="button" class="btn-success" onclick="actualizarMatricula()">
+                🔄 Actualizar Matrícula
+            </button>
             <button type="button" class="btn-secondary" onclick="limpiarFormulario()">
                 🧹 Limpiar Formulario
             </button>
@@ -149,6 +187,19 @@
 
 {% block scripts %}
 <script>
+    // Variables globales con datos del backend
+    const gruposEdad = {{ grupos_edad | tojson }};
+    const tiposIngreso = {{ tipos_ingreso | tojson }};
+    const semestresData = {{ semestres | tojson }};
+    const semestresMapJson = {{ semestres_map_json | safe }};
+    
+    // Crear mapa de semestres (ID -> Nombre)
+    const semestresMap = semestresMapJson || {};
+    
+    console.log('📊 Grupos de edad disponibles:', gruposEdad);
+    console.log('📊 Tipos de ingreso disponibles:', tiposIngreso);
+    console.log('📊 Semestres map:', semestresMap);
+
     // Función para cargar datos existentes cuando cambien los filtros usando SP
     async function cargarDatosExistentes() {
         const periodo = document.getElementById('periodo').value;
@@ -211,219 +262,449 @@
         }
     }
 
+    // Función para procesar los estados de semáforo que vienen del SP
+    function procesarEstadosSemaforoDelSP(rows) {
+        console.log('🚦 === PROCESANDO ESTADOS DE SEMÁFORO DEL SP ===');
+        
+        // Limpiar estados anteriores
+        estadosSemaforoPorSemestre = {};
+        
+        if (!rows || rows.length === 0) {
+            console.log('⚠️ No hay rows del SP para procesar estados');
+            return;
+        }
+        
+        // Mapeo de semestres a números
+        const semestreANumero = {
+            'Primero': 1, 'Primer': 1, '1': 1, 'I': 1,
+            'Segundo': 2, '2': 2, 'II': 2,
+            'Tercero': 3, 'Tercer': 3, '3': 3, 'III': 3,
+            'Cuarto': 4, '4': 4, 'IV': 4,
+            'Quinto': 5, '5': 5, 'V': 5,
+            'Sexto': 6, '6': 6, 'VI': 6,
+            'Séptimo': 7, 'Septimo': 7, '7': 7, 'VII': 7,
+            'Octavo': 8, '8': 8, 'VIII': 8,
+            'Noveno': 9, '9': 9, 'IX': 9,
+            'Décimo': 10, 'Decimo': 10, '10': 10, 'X': 10
+        };
+        
+        // Procesar cada fila del SP
+        rows.forEach(row => {
+            const semestre = row.Semestre;
+            const idSemaforo = row.Id_Semaforo;
+            
+            if (semestre && idSemaforo) {
+                const semestreNum = semestreANumero[semestre] || parseInt(semestre) || null;
+                
+                if (semestreNum) {
+                    // Si ya existe un estado para este semestre, mantener el de mayor prioridad
+                    if (!estadosSemaforoPorSemestre[semestreNum] || idSemaforo > estadosSemaforoPorSemestre[semestreNum]) {
+                        estadosSemaforoPorSemestre[semestreNum] = idSemaforo;
+                    }
+                    
+                    console.log(`🚦 Semestre "${semestre}" (${semestreNum}) -> Estado ${idSemaforo}`);
+                }
+            }
+        });
+        
+        console.log('🚦 Estados finales por semestre:', estadosSemaforoPorSemestre);
+    }
+
+    // Función para procesar TODAS las filas del SP y organizar los datos por semestre
+    function procesarYGuardarDatosPorSemestre(rows) {
+        console.log('📦 Procesando y guardando datos por semestre...');
+        
+        if (!rows || rows.length === 0) {
+            console.log('⚠️ No hay filas para procesar');
+            return;
+        }
+
+        // Objeto temporal para organizar datos por semestre
+        const datosPorSemestre = {};
+
+        rows.forEach((row, index) => {
+            // Extraer información de la fila
+            const semestre = row.Semestre;
+            const tipoIngreso = row.Tipo_de_Ingreso;
+            const grupoEdad = row.Grupo_Edad;
+            const sexo = row.Sexo;
+            const matricula = row.Matricula || 0;
+
+            if (!semestre || !tipoIngreso || !grupoEdad || !sexo) {
+                console.log(`⚠️ Fila ${index} incompleta, saltando...`);
+                return;
+            }
+
+            // Convertir semestre a ID numérico
+            const semestreANumero = {
+                'Primero': 1, '1': 1, 'I': 1,
+                'Segundo': 2, '2': 2, 'II': 2,
+                'Tercero': 3, '3': 3, 'III': 3,
+                'Cuarto': 4, '4': 4, 'IV': 4,
+                'Quinto': 5, '5': 5, 'V': 5,
+                'Sexto': 6, '6': 6, 'VI': 6,
+                'Septimo': 7, 'Séptimo': 7, '7': 7, 'VII': 7,
+                'Octavo': 8, '8': 8, 'VIII': 8,
+                'Noveno': 9, '9': 9, 'IX': 9,
+                'Décimo': 10, 'Decimo': 10, '10': 10, 'X': 10
+            };
+            
+            const semestreId = semestreANumero[semestre] || parseInt(semestre) || null;
+            if (!semestreId) {
+                console.log(`⚠️ No se pudo convertir semestre "${semestre}" a ID numérico`);
+                return;
+            }
+
+            // Convertir tipo de ingreso a ID
+            const tipoNorm = String(tipoIngreso).toLowerCase();
+            let tipoId = '1';
+            if (tipoNorm.includes('nuevo')) {
+                tipoId = '1';
+            } else if (tipoNorm.includes('reingreso') || tipoNorm.includes('re-ingreso')) {
+                tipoId = '2';
+            } else if (tipoNorm.includes('repet') || tipoNorm.includes('repetidor')) {
+                tipoId = '3';
+            }
+
+            // Convertir sexo
+            const sexoStr = String(sexo).toLowerCase();
+            let sexoFinal = 'M';
+            if (sexoStr.includes('mujer') || sexoStr.startsWith('f')) {
+                sexoFinal = 'F';
+            }
+
+            // Inicializar objeto del semestre si no existe
+            if (!datosPorSemestre[semestreId]) {
+                datosPorSemestre[semestreId] = {};
+            }
+
+            // Crear clave única: tipoId_grupoEdad_sexo
+            const key = `${tipoId}_${grupoEdad}_${sexoFinal}`;
+            
+            // Guardar el valor
+            const valor = parseInt(matricula) || 0;
+            if (valor > 0) {
+                datosPorSemestre[semestreId][key] = valor;
+            }
+        });
+
+        // Guardar en la variable global datosMatriculaPorSemestre
+        for (let semestreId in datosPorSemestre) {
+            const datos = datosPorSemestre[semestreId];
+            const cantidadDatos = Object.keys(datos).length;
+            
+            // Solo sobrescribir si no hay datos guardados previamente o si vienen datos nuevos del SP
+            if (!datosMatriculaPorSemestre[semestreId] || Object.keys(datosMatriculaPorSemestre[semestreId]).length === 0) {
+                datosMatriculaPorSemestre[semestreId] = datos;
+                console.log(`💾 Guardados ${cantidadDatos} valores del SP para semestre ${semestreId}`);
+            } else {
+                console.log(`📌 Semestre ${semestreId} ya tiene ${Object.keys(datosMatriculaPorSemestre[semestreId]).length} valores guardados, conservando...`);
+            }
+        }
+
+        console.log('✅ Procesamiento y guardado por semestre completado');
+    }
+
     // Renderiza la tabla de captura a partir de rows devueltas por el SP con nueva estructura
     // rows: array de objetos; datosMap: mapa opcional para poblar valores
         function renderMatriculaFromSP(rows, datosMap) {
-        console.log('=== renderMatriculaFromSP ===');
-        console.log('Número de rows:', rows.length);
-        console.log('datosMap:', datosMap);
-        
-        const tbody = document.getElementById('matricula-tbody');
-        tbody.innerHTML = '';
-
-        if (!rows || rows.length === 0) {
-            console.log('⚠️ No hay rows para renderizar, generando tabla vacía');
-            generarTablaVacia();
-            return;
-        }
-
-        // Heurísticas para columnas posibles
-        const tipoCandidates = ['Id_Tipo_Ingreso','Id_TipoIngreso','Tipo_Id','Tipo_de_Ingreso','TipoIngreso','Tipo_Ingreso','Tipo'];
-        const grupoCandidates = ['Id_Grupo_Edad','Id_GrupoEdad','IdGrupoEdad','Grupo_Edad','GrupoEdad','Grupo'];
-        const sexoCandidates = ['Id_Sexo','IdSexo','Sexo','Genero','Nombre_Sexo'];
-        const matriculaCandidates = ['Matricula','Total','Cantidad','Numero','Valor'];
-        
-        console.log('Columnas disponibles en la primera fila:', Object.keys(rows[0]));
-
-        // Determinar columnas presentes
-        const first = rows[0] || {};
-        const keys = Object.keys(first);
-
-        function findKey(cands) {
-            for (let c of cands) if (keys.includes(c)) return c;
-            const low = keys.reduce((acc,k)=>{acc[k.toLowerCase()]=k;return acc;},{})
-            for (let c of cands) if (low[c.toLowerCase()]) return low[c.toLowerCase()];
-            return null;
-        }
-
-        const tipoKey = findKey(tipoCandidates);
-        const grupoKey = findKey(grupoCandidates);
-        const sexoKey = findKey(sexoCandidates);
-        const matriculaKey = findKey(matriculaCandidates);
-
-        // Construir estructura: agrupar por edad y tipo de ingreso
-        const edadMap = {};
-        
-        rows.forEach(r => {
-            const tipoVal = tipoKey ? r[tipoKey] : (r['Tipo_de_Ingreso'] || r['Tipo'] || r['TipoIngreso'] || null);
-            const grupoVal = grupoKey ? r[grupoKey] : (r['Grupo_Edad'] || r['Grupo'] || r['GrupoEdad'] || null);
-            const sexoVal = sexoKey ? r[sexoKey] : (r['Sexo'] || r['Genero'] || null);
-            const matriculaVal = matriculaKey ? r[matriculaKey] : (r['Matricula'] || r['Total'] || 0);
-
-            const tipoId = tipoVal;
-            const grupoId = grupoVal;
-            const grupoLabel = grupoVal;
-            const sexo = (sexoVal && String(sexoVal).toLowerCase().startsWith('m')) ? 'M' : 'F';
+            console.log('=== renderMatriculaFromSP ===');
+            console.log('Número de rows:', rows.length);
+            console.log('datosMap:', datosMap);
             
-            // Normalizar tipo de ingreso
-            const tipoNorm = String(tipoVal || '').toLowerCase();
-            let tipoCategoria = 'Otros';
-            if (tipoNorm.includes('nuevo')) tipoCategoria = 'Nuevo Ingreso';
-            else if (tipoNorm.includes('reingreso') || tipoNorm.includes('re-ingreso')) tipoCategoria = 'Reingreso';
-            else if (tipoNorm.includes('repet') || tipoNorm.includes('repetidor')) tipoCategoria = 'Repetidores';
+            // NUEVA LÓGICA: Extraer estados de semáforo del SP
+            procesarEstadosSemaforoDelSP(rows);
+            
+            // PROCESAR Y GUARDAR DATOS DE TODOS LOS SEMESTRES
+            procesarYGuardarDatosPorSemestre(rows);
+            
+            const tbody = document.getElementById('matricula-tbody');
+            tbody.innerHTML = '';
 
-            if (!edadMap[grupoId]) {
-                edadMap[grupoId] = {
-                    grupoLabel: grupoLabel,
-                    'Nuevo Ingreso': { tipoId: null, M: 0, F: 0 },
-                    'Reingreso': { tipoId: null, M: 0, F: 0 },
-                    'Repetidores': { tipoId: null, M: 0, F: 0 }
-                };
+            if (!rows || rows.length === 0) {
+                console.log('⚠️ No hay rows para renderizar, generando tabla vacía');
+                generarTablaVacia();
+                return;
             }
+
+            // Obtener el semestre actualmente seleccionado
+            const semestreActualElement = document.getElementById('semestre');
+            const semestreActualId = semestreActualElement ? parseInt(semestreActualElement.value) : null;
             
-            if (!edadMap[grupoId][tipoCategoria].tipoId) {
-                edadMap[grupoId][tipoCategoria].tipoId = tipoId;
+            // Obtener el nombre del semestre actual desde el mapa
+            const semestreActualNombre = semestreActualId ? semestresMap[semestreActualId] : null;
+            
+            console.log(`📌 Semestre seleccionado: ID=${semestreActualId}, Nombre="${semestreActualNombre}"`);
+
+            // Heurísticas para columnas posibles
+            const tipoCandidates = ['Id_Tipo_Ingreso','Id_TipoIngreso','Tipo_Id','Tipo_de_Ingreso','TipoIngreso','Tipo_Ingreso','Tipo'];
+            const grupoCandidates = ['Id_Grupo_Edad','Id_GrupoEdad','IdGrupoEdad','Grupo_Edad','GrupoEdad','Grupo'];
+            const sexoCandidates = ['Id_Sexo','IdSexo','Sexo','Genero','Nombre_Sexo'];
+            const matriculaCandidates = ['Matricula','Total','Cantidad','Numero','Valor'];
+            const semestreCandidates = ['Semestre', 'Id_Semestre', 'IdSemestre'];
+            
+            console.log('Columnas disponibles en la primera fila:', Object.keys(rows[0]));
+
+            // Determinar columnas presentes
+            const first = rows[0] || {};
+            const keys = Object.keys(first);
+
+            function findKey(cands) {
+                for (let c of cands) if (keys.includes(c)) return c;
+                const low = keys.reduce((acc,k)=>{acc[k.toLowerCase()]=k;return acc;},{})
+                for (let c of cands) if (low[c.toLowerCase()]) return low[c.toLowerCase()];
+                return null;
             }
-            
-            const v = parseInt(matriculaVal) || 0;
-            if (sexo === 'M') edadMap[grupoId][tipoCategoria].M += v;
-            else edadMap[grupoId][tipoCategoria].F += v;
-        });
 
-        // Ordenar edades (asumiendo que son números o pueden ordenarse)
-        const edadesOrdenadas = Object.keys(edadMap).sort((a, b) => {
-            const numA = parseInt(a) || 0;
-            const numB = parseInt(b) || 0;
-            return numA - numB;
-        });
+            const tipoKey = findKey(tipoCandidates);
+            const grupoKey = findKey(grupoCandidates);
+            const sexoKey = findKey(sexoCandidates);
+            const matriculaKey = findKey(matriculaCandidates);
+            const semestreKey = findKey(semestreCandidates);
 
-        console.log('Edades encontradas:', edadesOrdenadas);
-        console.log('edadMap completo:', edadMap);
-
-        if (edadesOrdenadas.length === 0) {
-            console.log('⚠️ No se encontraron edades en los datos del SP');
-            generarTablaVacia();
-            return;
-        }
-
-        // Renderizar filas por edad
-        edadesOrdenadas.forEach(grupoId => {
-            const edadData = edadMap[grupoId];
-            const tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid #e0e0e0';
-            tr.style.transition = 'all 0.2s ease';
-            tr.onmouseover = () => tr.style.backgroundColor = '#f5f5f5';
-            tr.onmouseout = () => tr.style.backgroundColor = '';
-
-            // Columna de Edad
-            const tdEdad = document.createElement('td');
-            tdEdad.textContent = edadData.grupoLabel || grupoId;
-            tdEdad.style.padding = '12px';
-            tdEdad.style.textAlign = 'center';
-            tdEdad.style.fontWeight = '500';
-            tdEdad.style.fontSize = '15px';
-            tdEdad.style.color = '#424242';
-            tdEdad.style.background = '#f8f9fa';
-            tdEdad.style.verticalAlign = 'middle';
-
-            // Columnas para cada tipo de ingreso
-            ['Nuevo Ingreso', 'Reingreso', 'Repetidores'].forEach(tipoCategoria => {
-                const tdTipo = document.createElement('td');
-                tdTipo.style.padding = '10px';
-                tdTipo.style.verticalAlign = 'middle';
+            // FILTRAR: Solo procesar filas del semestre actual
+            const rowsFiltradas = rows.filter(r => {
+                if (!semestreKey || !semestreActualNombre) return true; // Si no hay info de semestre, procesar todas
                 
-                const datos = edadData[tipoCategoria];
-                const tipoId = datos.tipoId || tipoCategoria.replace(' ', '_');
-
-                // Dentro de renderMatriculaFromSP, en la generación del tdTipo.innerHTML
-                tdTipo.innerHTML = `
-                <div style="display:inline-flex; gap:6px; justify-content:center; align-items:center; width:auto; /* Contenedor general */">
-                    
-                    <div style="display:inline-flex; align-items:center; gap:3px; padding:2px 4px; background:#e3f2fd; border-radius:4px; border:1px solid #90caf9; line-height:1;">
-                        <div style="font-weight:700;color:#1976d2;font-size:11px;min-width:14px;text-align:center;">H</div>
-                        <input type="number" 
-                            id="input_${tipoId}_${grupoId}_M" 
-                            value="${datos.M || 0}" 
-                            min="0" 
-                            class="input-matricula-nueva" 
-                            data-tipo-ingreso="${tipoId}" 
-                            data-grupo-edad="${grupoId}" 
-                            data-sexo="M" 
-                            style="width:42px;padding:2px 3px;border:2px solid #2196f3;border-radius:3px;background:#fff;color:#1976d2;font-weight:600;text-align:center;font-size:11px;line-height:1.1;" 
-                            placeholder="0">
-                    </div>
-
-                    <div style="display:inline-flex; align-items:center; gap:3px; padding:2px 4px; background:#fce4ec; border-radius:4px; border:1px solid #f48fb1; line-height:1;">
-                        <div style="font-weight:700;color:#c2185b;font-size:11px;min-width:14px;text-align:center;">M</div>
-                        <input type="number" 
-                            id="input_${tipoId}_${grupoId}_F" 
-                            value="${datos.F || 0}" 
-                            min="0" 
-                            class="input-matricula-nueva" 
-                            data-tipo-ingreso="${tipoId}" 
-                            data-grupo-edad="${grupoId}" 
-                            data-sexo="F" 
-                            style="width:42px;padding:2px 3px;border:2px solid #e91e63;border-radius:3px;background:#fff;color:#c2185b;font-weight:600;text-align:center;font-size:11px;line-height:1.1;" 
-                            placeholder="0">
-                    </div>
-                </div>`;
-
-                tr.appendChild(tdEdad.cloneNode ? tdEdad.cloneNode(true) : tdEdad);
-                tdEdad = null; // Solo agregar edad una vez
+                const semestreRow = r[semestreKey];
+                const match = String(semestreRow).toLowerCase() === semestreActualNombre.toLowerCase();
+                
+                if (!match) {
+                    console.log(`⏭️ Saltando fila: Semestre "${semestreRow}" no coincide con "${semestreActualNombre}"`);
+                }
+                
+                return match;
             });
 
-            // Agregar celdas de tipos de ingreso
-            ['Nuevo Ingreso', 'Reingreso', 'Repetidores'].forEach((tipoCategoria, idx) => {
-                const tdTipo = document.createElement('td');
-                tdTipo.style.padding = '10px';
-                tdTipo.style.verticalAlign = 'middle';
-                
-                const datos = edadData[tipoCategoria];
-                const tipoId = datos.tipoId || tipoCategoria.replace(' ', '_');
+            console.log(`🔍 Filtrando: ${rows.length} filas totales → ${rowsFiltradas.length} filas del semestre "${semestreActualNombre}"`);
 
-                // Dentro de generarTablaVacia, en la generación del tdTipo.innerHTML
-                tdTipo.innerHTML = `
-                    <div style="display:flex;gap:4px;justify-content:center;align-items:center; /* Contenedor de la celda */">
+            if (rowsFiltradas.length === 0) {
+                console.log('⚠️ No hay datos para el semestre seleccionado, generando tabla vacía');
+                generarTablaVacia();
+                return;
+            }
+
+            // Construir estructura: agrupar por edad y tipo de ingreso
+            const edadMap = {};
+            
+            console.log('🔍 Procesando rows del SP para poblar inputs...');
+            
+            rowsFiltradas.forEach((r, index) => {
+                const tipoVal = tipoKey ? r[tipoKey] : (r['Tipo_de_Ingreso'] || r['Tipo'] || r['TipoIngreso'] || null);
+                const grupoVal = grupoKey ? r[grupoKey] : (r['Grupo_Edad'] || r['Grupo'] || r['GrupoEdad'] || null);
+                const sexoVal = sexoKey ? r[sexoKey] : (r['Sexo'] || r['Genero'] || null);
+                const matriculaVal = matriculaKey ? r[matriculaKey] : (r['Matricula'] || r['Total'] || 0);
+
+                console.log(`Row ${index + 1}:`, {
+                    tipo: tipoVal,
+                    grupo: grupoVal,
+                    sexo: sexoVal,
+                    matricula: matriculaVal
+                });
+
+                const grupoId = String(grupoVal || '');
+                const grupoLabel = String(grupoVal || '');
+                
+                // Determinar sexo: Hombre/M → M, Mujer/F → F
+                let sexo = 'M';
+                if (sexoVal) {
+                    const sexoStr = String(sexoVal).toLowerCase();
+                    if (sexoStr.includes('mujer') || sexoStr.startsWith('f')) {
+                        sexo = 'F';
+                    }
+                }
+                
+                // Normalizar tipo de ingreso y mapear a ID
+                let tipoCategoria = 'Nuevo Ingreso';
+                let tipoId = '1'; // Default
+                
+                if (tipoVal) {
+                    const tipoNorm = String(tipoVal).toLowerCase();
+                    if (tipoNorm.includes('nuevo')) {
+                        tipoCategoria = 'Nuevo Ingreso';
+                        tipoId = '1';
+                    } else if (tipoNorm.includes('reingreso') || tipoNorm.includes('re-ingreso')) {
+                        tipoCategoria = 'Reingreso';
+                        tipoId = '2';
+                    } else if (tipoNorm.includes('repet') || tipoNorm.includes('repetidor')) {
+                        tipoCategoria = 'Repetidores';
+                        tipoId = '3';
+                    }
+                }
+
+                console.log(`✅ Procesando: Grupo=${grupoId}, Tipo=${tipoCategoria}(ID:${tipoId}), Sexo=${sexo}, Valor=${matriculaVal}`);
+
+                // Inicializar estructura para este grupo de edad
+                if (!edadMap[grupoId]) {
+                    edadMap[grupoId] = {
+                        grupoLabel: grupoLabel,
+                        'Nuevo Ingreso': { tipoId: '1', M: 0, F: 0 },
+                        'Reingreso': { tipoId: '2', M: 0, F: 0 },
+                        'Repetidores': { tipoId: '3', M: 0, F: 0 }
+                    };
+                }
+                
+                // Asignar el valor de matrícula
+                const v = parseInt(matriculaVal) || 0;
+                if (v > 0) {
+                    edadMap[grupoId][tipoCategoria][sexo] = v;
+                    console.log(`🎯 Asignado: ${tipoCategoria} ${sexo} = ${v} (grupo ${grupoId})`);
+                }
+            });
+
+            console.log('📊 edadMap con datos del SP:', edadMap);
+            console.log('🔑 Claves en edadMap:', Object.keys(edadMap));
+
+            // Usar TODOS los grupos de edad definidos, no solo los que tienen datos
+            if (!gruposEdad || gruposEdad.length === 0) {
+                console.log('⚠️ No hay grupos de edad definidos');
+                generarTablaVacia();
+                return;
+            }
+
+            console.log('📊 Grupos de edad disponibles (sin ordenar):', gruposEdad.map(g => `${g.Grupo_Edad} (ID:${g.Id_Grupo_Edad})`));
+
+            // Función para ordenar grupos de edad correctamente
+            function ordenarGruposEdad(grupos) {
+                // Crear una copia del array para no modificar el original
+                const gruposCopia = [...grupos];
+                
+                return gruposCopia.sort((a, b) => {
+                    const edadA = String(a.Grupo_Edad).trim();
+                    const edadB = String(b.Grupo_Edad).trim();
+                    
+                    console.log(`🔄 Comparando: "${edadA}" vs "${edadB}"`);
+                    
+                    // Casos especiales: <18 va primero
+                    if (edadA.startsWith('<') && !edadB.startsWith('<')) {
+                        console.log(`  → "${edadA}" va primero (es <)`);
+                        return -1;
+                    }
+                    if (!edadA.startsWith('<') && edadB.startsWith('<')) {
+                        console.log(`  → "${edadB}" va primero (es <)`);
+                        return 1;
+                    }
+                    
+                    // Casos especiales: >=40 va al final
+                    if ((edadA.startsWith('>') || edadA.includes('>=')) && !(edadB.startsWith('>') || edadB.includes('>='))) {
+                        console.log(`  → "${edadA}" va al final (es >)`);
+                        return 1;
+                    }
+                    if (!(edadA.startsWith('>') || edadA.includes('>=')) && (edadB.startsWith('>') || edadB.includes('>='))) {
+                        console.log(`  → "${edadB}" va al final (es >)`);
+                        return -1;
+                    }
+                    
+                    // Para números o rangos, extraer el primer número
+                    const getNumero = (str) => {
+                        // Extraer el primer número encontrado
+                        const match = str.match(/\d+/);
+                        return match ? parseInt(match[0]) : 999;
+                    };
+                    
+                    const numA = getNumero(edadA);
+                    const numB = getNumero(edadB);
+                    
+                    console.log(`  → Números extraídos: ${numA} vs ${numB}`);
+                    
+                    return numA - numB;
+                });
+            }
+
+            // Ordenar grupos de edad
+            console.log('🔀 Iniciando ordenamiento...');
+            const gruposEdadOrdenados = ordenarGruposEdad(gruposEdad);
+            console.log('✅ Grupos de edad ordenados:', gruposEdadOrdenados.map(g => `${g.Grupo_Edad} (ID:${g.Id_Grupo_Edad})`));
+
+            // Renderizar filas por TODOS los grupos de edad (no solo los que tienen datos)
+            gruposEdadOrdenados.forEach((edadObj, index) => {
+                const grupoId = String(edadObj.Grupo_Edad); // Este es el valor real: "18", "19", etc.
+                const grupoLabel = grupoId;
+                
+                // Buscar si hay datos para este grupo de edad en el edadMap
+                const edadData = edadMap[grupoId] || {
+                    grupoLabel: grupoLabel,
+                    'Nuevo Ingreso': { tipoId: '1', M: 0, F: 0 },
+                    'Reingreso': { tipoId: '2', M: 0, F: 0 },
+                    'Repetidores': { tipoId: '3', M: 0, F: 0 }
+                };
+                
+                // Log detallado para depuración
+                if (edadMap[grupoId]) {
+                    console.log(`✅ Fila ${index}: Grupo "${grupoId}" - Tiene datos:`, edadMap[grupoId]);
+                } else {
+                    console.log(`⚪ Fila ${index}: Grupo "${grupoId}" - Sin datos (vacío)`);
+                }
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #e0e0e0';
+                tr.style.transition = 'all 0.2s ease';
+                tr.onmouseover = () => tr.style.backgroundColor = '#f5f5f5';
+                tr.onmouseout = () => tr.style.backgroundColor = '';
+
+                // Columna de Edad (solo una vez)
+                const tdEdad = document.createElement('td');
+                tdEdad.textContent = edadData.grupoLabel || grupoId;
+                tdEdad.style.padding = '12px';
+                tdEdad.style.textAlign = 'center';
+                tdEdad.style.fontWeight = '500';
+                tdEdad.style.fontSize = '15px';
+                tdEdad.style.color = '#424242';
+                tdEdad.style.background = '#f8f9fa';
+                tdEdad.style.verticalAlign = 'middle';
+                tr.appendChild(tdEdad);
+
+                // Columnas para cada tipo de ingreso
+                ['Nuevo Ingreso', 'Reingreso', 'Repetidores'].forEach(tipoCategoria => {
+                    const tdTipo = document.createElement('td');
+                    tdTipo.style.padding = '10px';
+                    tdTipo.style.verticalAlign = 'middle';
+                    
+                    const datos = edadData[tipoCategoria];
+                    const tipoId = datos.tipoId;
+
+                    // Obtener valores del SP
+                    const valorM = datos.M || 0;
+                    const valorF = datos.F || 0;
+                    
+                    console.log(`🎯 Generando inputs: ${tipoCategoria} - Grupo ${grupoId} - M:${valorM}, F:${valorF}`);
+                    
+                    tdTipo.innerHTML = `
+                    <div style="display:inline-flex; gap:6px; justify-content:center; align-items:center; width:auto;">
                         
-                        <div style="display:inline-flex; align-items:center; gap:4px; padding:2px 4px; background:#e3f2fd; border-radius:4px; border:1px solid #90caf9; line-height:1;">
+                        <div style="display:inline-flex; align-items:center; gap:3px; padding:2px 4px; background:#e3f2fd; border-radius:4px; border:1px solid #90caf9; line-height:1;">
                             <div style="font-weight:700;color:#1976d2;font-size:11px;min-width:14px;text-align:center;">H</div>
                             <input type="number" 
-                                id="input_${tipo.id}_${edadObj.id}_M" 
-                                value="" 
+                                id="input_${tipoId}_${grupoId}_M" 
+                                value="${valorM > 0 ? valorM : ''}" 
                                 min="0" 
                                 class="input-matricula-nueva" 
-                                data-tipo-ingreso="${tipo.id}" 
-                                data-grupo-edad="${edadObj.id}" 
+                                data-tipo-ingreso="${tipoId}" 
+                                data-grupo-edad="${grupoId}" 
                                 data-sexo="M" 
-                                oninput="this.value = this.value.replace(/[^0-9]/g, '')"
                                 style="width:42px;padding:2px 3px;border:2px solid #2196f3;border-radius:3px;background:#fff;color:#1976d2;font-weight:600;text-align:center;font-size:11px;line-height:1.1;" 
-                                placeholder="0">
+                                placeholder="">
                         </div>
 
-                        <div style="display:inline-flex; align-items:center; gap:4px; padding:2px 4px; background:#fce4ec; border-radius:4px; border:1px solid #f48fb1; line-height:1;">
+                        <div style="display:inline-flex; align-items:center; gap:3px; padding:2px 4px; background:#fce4ec; border-radius:4px; border:1px solid #f48fb1; line-height:1;">
                             <div style="font-weight:700;color:#c2185b;font-size:11px;min-width:14px;text-align:center;">M</div>
                             <input type="number" 
-                                id="input_${tipo.id}_${edadObj.id}_F" 
-                                value="" 
+                                id="input_${tipoId}_${grupoId}_F" 
+                                value="${valorF > 0 ? valorF : ''}" 
                                 min="0" 
                                 class="input-matricula-nueva" 
-                                data-tipo-ingreso="${tipo.id}" 
-                                data-grupo-edad="${edadObj.id}" 
+                                data-tipo-ingreso="${tipoId}" 
+                                data-grupo-edad="${grupoId}" 
                                 data-sexo="F" 
-                                oninput="this.value = this.value.replace(/[^0-9]/g, '')"
                                 style="width:42px;padding:2px 3px;border:2px solid #e91e63;border-radius:3px;background:#fff;color:#c2185b;font-weight:600;text-align:center;font-size:11px;line-height:1.1;" 
-                                placeholder="0">
+                                placeholder="">
                         </div>
                     </div>`;
 
-                if (idx === 0) {
-                    tr.appendChild(tdEdad);
-                }
-                tr.appendChild(tdTipo);
-            });
+                    tr.appendChild(tdTipo);
+                });
 
-            tbody.appendChild(tr);
-        });
+                tbody.appendChild(tr);
+            });
 
         // Agregar fila de totales
         const trTot = document.createElement('tr');
@@ -463,6 +744,10 @@
         inputs.forEach(input => {
             input.addEventListener('input', calcularTotales);
             input.addEventListener('change', calcularTotales);
+            input.addEventListener('focus', scrollToVisibleInput);
+            // Guardar datos automáticamente cuando cambie el valor
+            input.addEventListener('input', guardarDatosSemestreActual);
+            input.addEventListener('change', guardarDatosSemestreActual);
         });
 
         // Si se pasó un datosMap, poblar valores
@@ -477,6 +762,24 @@
                 }
             }
         }
+
+        // Restaurar datos guardados del semestre actual después de renderizar
+        // NOTA: Solo restaurar si hay datos guardados localmente, 
+        // de lo contrario conservar los valores que vienen del SP
+        const semestreActual = parseInt(document.getElementById('semestre').value);
+        setTimeout(() => {
+            const datosExistentes = datosMatriculaPorSemestre[semestreActual] || {};
+            if (Object.keys(datosExistentes).length > 0) {
+                console.log('📦 Hay datos guardados localmente, restaurando...');
+                restaurarDatosSemestre(semestreActual);
+            } else {
+                console.log('📊 No hay datos guardados localmente');
+                console.log('   (Los datos del SP ya fueron guardados por procesarYGuardarDatosPorSemestre)');
+                
+                // Solo aplicar reglas de validación por semestre
+                updateInputsBySemestre(semestreActual);
+            }
+        }, 100); // Pequeño delay para asegurar que los inputs estén renderizados
 
         calcularTotales();
     }
@@ -510,15 +813,23 @@
         if (totalMasculinoEl) totalMasculinoEl.textContent = totalMasculino;
         if (totalFemeninoEl) totalFemeninoEl.textContent = totalFemenino;
         if (totalGeneralEl) totalGeneralEl.textContent = totalGeneral;
+        
+        // Actualizar colores del semáforo en las pestañas
+        if (typeof actualizarColoresPestanas === 'function') {
+            actualizarColoresPestanas();
+        }
     }
 
     // Función para generar tabla vacía con estructura basada en grupos de edad del backend
     function generarTablaVacia() {
+        // Limpiar estados de semáforo al generar tabla vacía
+        estadosSemaforoPorSemestre = {};
+        console.log('🚦 Estados de semáforo limpiados (tabla vacía)');
+        
         const tbody = document.getElementById('matricula-tbody');
         tbody.innerHTML = '';
         
-        // Usar grupos de edad del backend en lugar de valores predefinidos
-        const gruposEdad = {{ grupos_edad | tojson }};
+        // Usar grupos de edad globales del backend
         console.log('Grupos de edad desde backend para tabla vacía:', gruposEdad);
         
         // Si no hay grupos de edad del backend, usar valores por defecto
@@ -647,7 +958,26 @@
         inputs.forEach(input => {
             input.addEventListener('input', calcularTotales);
             input.addEventListener('change', calcularTotales);
+            input.addEventListener('focus', scrollToVisibleInput);
+            // Guardar datos automáticamente cuando cambie el valor
+            input.addEventListener('input', guardarDatosSemestreActual);
+            input.addEventListener('change', guardarDatosSemestreActual);
         });
+        
+        // Restaurar datos guardados del semestre actual después de renderizar
+        // NOTA: Solo restaurar si hay datos guardados localmente
+        const semestreActual = parseInt(document.getElementById('semestre').value);
+        setTimeout(() => {
+            const datosExistentes = datosMatriculaPorSemestre[semestreActual] || {};
+            if (Object.keys(datosExistentes).length > 0) {
+                console.log('📦 Hay datos guardados localmente (tabla vacía), restaurando...');
+                restaurarDatosSemestre(semestreActual);
+            } else {
+                console.log('📊 No hay datos guardados (tabla vacía), tabla queda vacía');
+                // Solo aplicar reglas de validación por semestre
+                updateInputsBySemestre(semestreActual);
+            }
+        }, 100); // Pequeño delay para asegurar que los inputs estén renderizados
         
         calcularTotales();
     }
@@ -655,6 +985,16 @@
     // Variables globales para manejo de turnos
     let turnosDisponibles = {{ turnos | tojson }};
     let turnoActualIndex = 0;
+
+    // Variables globales para semáforo de semestres
+    let semaforoEstados = {{ semaforo_estados | tojson }};
+    console.log('🚦 Estados del semáforo cargados:', semaforoEstados);
+
+    // Almacén global de datos por semestre
+    let datosMatriculaPorSemestre = {};
+
+    // Almacén de estados de semáforo por semestre (viene del SP)
+    let estadosSemaforoPorSemestre = {};
 
     // Función para cambiar turno
     function cambiarTurno(direccion) {
@@ -677,7 +1017,22 @@
         cargarDatosExistentes();
     }
 
-    // Función para generar pestañas de semestres
+    // Función para determinar el estado de progreso de un semestre
+    function determinarEstadoSemestre(semestreNum) {
+        // Buscar el estado del semáforo que viene del SP para este semestre
+        const estadoDelSP = estadosSemaforoPorSemestre[semestreNum];
+        
+        if (estadoDelSP) {
+            console.log(`🚦 Semestre ${semestreNum}: Estado del SP = ${estadoDelSP}`);
+            return estadoDelSP;
+        }
+        
+        // Si no hay estado del SP, usar estado por defecto (sin datos)
+        console.log(`🚦 Semestre ${semestreNum}: Sin estado del SP, usando estado por defecto (1)`);
+        return 1; // Estado por defecto - Sin datos
+    }
+
+    // Función para generar pestañas de semestres con semáforo
     function generarPestanasSemestres(maxSemestre) {
         const tabsContainer = document.getElementById('semestres-tabs');
         tabsContainer.innerHTML = '';
@@ -689,6 +1044,9 @@
             tab.setAttribute('data-semestre', i);
             tab.onclick = () => seleccionarSemestre(i);
             
+            // Aplicar color del semáforo
+            actualizarColorPestana(tab, i);
+            
             if (i === 1) {
                 tab.classList.add('active');
             }
@@ -697,8 +1055,97 @@
         }
     }
 
+    // Función para actualizar el color de una pestaña según su estado
+    function actualizarColorPestana(tab, semestreNum) {
+        const estadoId = determinarEstadoSemestre(semestreNum);
+        const estado = semaforoEstados.find(s => s.id === estadoId);
+        
+        if (estado) {
+            // Remover clases de color anteriores
+            tab.classList.remove('semaforo-estado-1', 'semaforo-estado-2', 'semaforo-estado-3');
+            
+            // Agregar clase y estilo para el estado actual
+            tab.classList.add(`semaforo-estado-${estadoId}`);
+            tab.style.setProperty('--semaforo-color', estado.color);
+            
+            // Agregar tooltip con la descripción
+            tab.title = `${estado.descripcion}`;
+            
+            console.log(`🚦 Semestre ${semestreNum}: Estado ${estadoId} (${estado.descripcion}) - Color: ${estado.color}`);
+        }
+    }
+
+    // Función para actualizar todos los colores de las pestañas
+    function actualizarColoresPestanas() {
+        const tabs = document.querySelectorAll('.semestre-tab');
+        tabs.forEach(tab => {
+            const semestreNum = parseInt(tab.getAttribute('data-semestre'));
+            actualizarColorPestana(tab, semestreNum);
+        });
+    }
+
+    // Función para guardar datos del semestre actual
+    function guardarDatosSemestreActual() {
+        const semestreActual = parseInt(document.getElementById('semestre').value);
+        const inputs = document.querySelectorAll('input.input-matricula-nueva');
+        
+        // Inicializar almacén para este semestre si no existe
+        if (!datosMatriculaPorSemestre[semestreActual]) {
+            datosMatriculaPorSemestre[semestreActual] = {};
+        }
+        
+        inputs.forEach(input => {
+            const tipoIngreso = input.getAttribute('data-tipo-ingreso');
+            const grupoEdad = input.getAttribute('data-grupo-edad');
+            const sexo = input.getAttribute('data-sexo');
+            const valor = input.value || '';
+            const key = `${tipoIngreso}_${grupoEdad}_${sexo}`;
+            
+            datosMatriculaPorSemestre[semestreActual][key] = valor;
+        });
+        
+        console.log(`💾 Datos guardados para semestre ${semestreActual}:`, datosMatriculaPorSemestre[semestreActual]);
+    }
+
+    // Función para restaurar datos del semestre seleccionado
+    function restaurarDatosSemestre(semestreNum) {
+        const datosDelSemestre = datosMatriculaPorSemestre[semestreNum] || {};
+        const tieneDatosGuardados = Object.keys(datosDelSemestre).length > 0;
+        const inputs = document.querySelectorAll('input.input-matricula-nueva');
+        
+        console.log(`🔄 Restaurando semestre ${semestreNum}: ${tieneDatosGuardados ? 'Tiene datos guardados' : 'Sin datos guardados - conservando valores del SP'}`);
+        
+        inputs.forEach(input => {
+            const tipoIngreso = input.getAttribute('data-tipo-ingreso');
+            const grupoEdad = input.getAttribute('data-grupo-edad');
+            const sexo = input.getAttribute('data-sexo');
+            const key = `${tipoIngreso}_${grupoEdad}_${sexo}`;
+            
+            if (datosDelSemestre[key] !== undefined) {
+                // Si hay datos guardados, restaurarlos
+                input.value = datosDelSemestre[key];
+            } else if (tieneDatosGuardados) {
+                // Solo limpiar si había datos guardados pero esta clave no existe
+                // (significa que el usuario lo dejó vacío intencionalmente)
+                input.value = '';
+            }
+            // Si NO hay datos guardados, NO hacer nada (conservar valores del SP)
+        });
+        
+        console.log(`✅ Datos restaurados para semestre ${semestreNum}:`, Object.keys(datosDelSemestre).length, 'campos');
+        
+        // Recalcular totales después de restaurar
+        calcularTotales();
+        
+        // Ajustar inputs habilitados/inhabilitados según reglas de semestres
+        updateInputsBySemestre(semestreNum);
+    }
+
     // Función para seleccionar semestre
     function seleccionarSemestre(semestreNum) {
+        // Guardar datos del semestre actual antes de cambiar
+        guardarDatosSemestreActual();
+        
         // Actualizar tabs activas
         const tabs = document.querySelectorAll('.semestre-tab');
         tabs.forEach(tab => {
@@ -714,6 +1161,61 @@
         
         // Recargar datos
         cargarDatosExistentes();
+    }
+
+    // Función que habilita/inhabilita inputs según el semestre seleccionado
+    // Regla: Si Semestre 1 -> bloquear 'Reingreso' (tipo id = 2)
+    //       Si Semestre != 1 -> bloquear 'Nuevo Ingreso' (tipo id = 1)
+    function updateInputsBySemestre(semestreNum) {
+        const inputs = document.querySelectorAll('input.input-matricula-nueva');
+        inputs.forEach(input => {
+            const tipo = input.getAttribute('data-tipo-ingreso');
+            if (!tipo) return;
+
+            let shouldDisable = false;
+            let tooltipMessage = '';
+
+            if (parseInt(semestreNum) === 1) {
+                // Bloquear Reingreso (tipo 2) en semestre 1
+                if (tipo === '2') {
+                    shouldDisable = true;
+                    tooltipMessage = 'Reingreso no aplica en Semestre 1';
+                }
+            } else {
+                // En cualquier otro semestre, bloquear Nuevo Ingreso (tipo 1)
+                if (tipo === '1') {
+                    shouldDisable = true;
+                    tooltipMessage = `Nuevo Ingreso no aplica en Semestre ${semestreNum}`;
+                }
+            }
+
+            if (shouldDisable) {
+                input.disabled = true;
+                input.classList.add('input-disabled');
+                input.title = tooltipMessage;
+                input.value = ''; // Limpiar valor si se deshabilita
+                
+                // Agregar indicador visual al contenedor padre
+                const container = input.closest('.matricula-box');
+                if (container) {
+                    container.classList.add('input-container-disabled');
+                    container.setAttribute('data-tooltip', tooltipMessage);
+                }
+            } else {
+                input.disabled = false;
+                input.classList.remove('input-disabled');
+                input.title = '';
+                
+                // Remover indicador visual del contenedor padre
+                const container = input.closest('.matricula-box');
+                if (container) {
+                    container.classList.remove('input-container-disabled');
+                    container.removeAttribute('data-tooltip');
+                }
+            }
+        });
+        
+        console.log(`🚫 Inputs actualizados para Semestre ${semestreNum}: ${document.querySelectorAll('.input-disabled').length} deshabilitados`);
     }
 
     function guardarMatricula() {
@@ -805,6 +1307,53 @@
             saveBtn.textContent = originalText;
             saveBtn.disabled = false;
         });
+    }
+
+    function scrollToVisibleInput(event) {
+        const input = event.target;
+        const container = document.querySelector('.tabla-matricula-completa tbody');
+        
+        if (!container || !input) return;
+        
+        // Agregar un pequeño retraso para que el foco se establezca completamente
+        setTimeout(() => {
+            // Obtener la fila que contiene el input
+            const row = input.closest('tr');
+            if (!row) return;
+            
+            // Calcular la posición de la fila dentro del contenedor
+            const rowRect = row.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            
+            // Posición relativa de la fila dentro del contenedor scrolleable
+            const rowTop = rowRect.top - containerRect.top + container.scrollTop;
+            const rowHeight = rowRect.height;
+            
+            // Altura útil del contenedor (descontando espacio para totales)
+            const containerHeight = container.clientHeight;
+            const reservedSpace = 80; // Espacio para totales y margen
+            const usableHeight = containerHeight - reservedSpace;
+            
+            // Centrar la fila en el área visible
+            const targetScrollTop = rowTop - (usableHeight / 2) + (rowHeight / 2);
+            
+            // Aplicar scroll suave hacia la posición calculada
+            container.scrollTo({
+                top: Math.max(0, targetScrollTop), // No permitir scroll negativo
+                behavior: 'smooth'
+            });
+            
+            // Resaltar temporalmente el input para que sea más visible
+            input.style.boxShadow = '0 0 10px 3px rgba(110, 3, 67, 0.5)';
+            input.style.transform = 'scale(1.05)';
+            
+            // Quitar el resaltado después de 1 segundo
+            setTimeout(() => {
+                input.style.boxShadow = '';
+                input.style.transform = '';
+            }, 1000);
+            
+        }, 10); // Pequeño retraso para asegurar que el foco esté establecido
     }
 
     function limpiarFormulario() {
@@ -919,6 +1468,67 @@
         });
         html += '</tbody></table>';
         content.innerHTML = html;
+    }
+
+    // Función para actualizar la matrícula definitiva usando el SP
+    function actualizarMatricula() {
+        // Confirmar la acción
+        if (!confirm('🔄 ¿Está seguro de que desea actualizar la matrícula definitiva?\n\n⚠️ Esta acción:\n• Transferirá todos los datos de la tabla temporal a la matrícula oficial\n• Limpiará la tabla temporal\n• No se puede deshacer\n\n¿Continuar?')) {
+            return;
+        }
+
+        const updateBtn = document.querySelector('.btn-success');
+        const originalText = updateBtn.textContent;
+        updateBtn.textContent = '⏳ Actualizando...';
+        updateBtn.disabled = true;
+
+        // Obtener período desde el campo hidden
+        const periodo = document.getElementById('periodo').value;
+
+        fetch('/matricula/actualizar_matricula', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                periodo: periodo
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            console.log('Respuesta del servidor:', data);
+            
+            if (data.warning) {
+                alert(`⚠️ ${data.warning}`);
+                return;
+            }
+            
+            // Mostrar mensaje de éxito detallado
+            let mensaje = `✅ ${data.mensaje}\n\n`;
+            mensaje += `📊 Registros procesados: ${data.registros_procesados}\n`;
+            mensaje += `🧹 Tabla temporal limpiada: ${data.temp_matricula_limpiada ? 'Sí' : 'No'}\n`;
+            mensaje += `👤 Usuario: ${data.usuario}\n`;
+            mensaje += `📅 Período: ${data.periodo}\n`;
+            mensaje += `⏰ Fecha: ${new Date(data.timestamp).toLocaleString()}`;
+            
+            alert(mensaje);
+            
+            // Opcional: Recargar la página o actualizar la vista
+             location.reload();
+        })
+        .catch(error => {
+            console.error('Error al actualizar matrícula:', error);
+            alert(`❌ Error al actualizar la matrícula: ${error.message}`);
+        })
+        .finally(() => {
+            // Restaurar botón
+            updateBtn.textContent = originalText;
+            updateBtn.disabled = false;
+        });
     }
 </script>
 {% endblock %}
