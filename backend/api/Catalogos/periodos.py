@@ -9,7 +9,7 @@ from backend.core.templates import templates
 router = APIRouter()
 
 
-@router.get("/domicilios", response_class=HTMLResponse)
+@router.get("/periodos", response_class=HTMLResponse)
 def domicilios_view(
     request: Request,
     UUsuario: str = "paco",
@@ -24,7 +24,7 @@ def domicilios_view(
     try:
         # Ejecutar el Stored Procedure con parámetros nombrados
         query = text("""
-            EXEC dbo.SP_Consulta_Catalogo_Unidad_Academica
+            EXEC dbo.SP_Consulta_Catalogo_Periodos
                 @UUsuario = :UUsuario,
                 @HHost = :HHost,
                 @PPeriodo = :PPeriodo
@@ -40,14 +40,14 @@ def domicilios_view(
         print(data)
 
     except Exception as e:
-        print("Error al ejecutar SP_Consulta_Catalogo_Unidad_Academica:", e)
+        print("Error al ejecutar SP_Consulta_Catalogo_Periodos:", e)
         data = []
 
     # Renderizar la plantilla HTML con los resultados
     return templates.TemplateResponse(
-        "catalogos/domicilios.html",
+        "catalogos/periodos.html",
         {
             "request": request,
-            "domicilios": data
+            "periodos": data
         }
     )
