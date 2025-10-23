@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block title %}Semáforo{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/static/css/components/header.css">
+<link rel="stylesheet" href="/static/css/components/forms.css">
+<link rel="stylesheet" href="/static/css/components/filters.css">
+<link rel="stylesheet" href="/static/css/components/tables.css">
+<link rel="stylesheet" href="/static/css/components/modal.css">
+<style>
+    .semaforo {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 6px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header-usuarios">
+        <h2>Semáforo</h2>
+        <form action="/mod_principal" method="get">
+            <button type="submit" class="btn-volver">Regresar</button>
+        </form>
+    </div>
+
+
+    <!-- 🔹 Tabla de roles con semáforo -->
+    <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ccc; border-radius: 6px; margin-top: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <table id="tabla-roles" style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+            <thead style="position: sticky; top: 0; background-color: #f4f4f4; z-index: 1;">
+                <tr>
+                    <th style="padding: 6px;">Color</th>
+                    <th style="padding: 6px;">Descripción Semáforo</th>
+                    <th style="padding: 6px;">Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in semaforo %}
+                <tr class="fila-rol" style="border-top: 1px solid #ddd;">
+                    <td style="padding: 4px; text-align: center;">
+                        <span class="semaforo" style="background-color: #{{ r.Color_Semaforo }};"></span>
+                    </td>
+                    <td style="padding: 4px;">{{ r.Descripcion_Semaforo }}</td>
+                    <td style="padding: 4px;">{{ r.Descripcion }}</td>
+                    
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/filters.js"></script>
+<script src="/static/js/modal.js"></script>
+<script src="/static/js/user_form.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const filtro = document.getElementById("filtro-rol");
+    const filas = document.querySelectorAll("#tabla-roles tbody tr");
+
+    filtro.addEventListener("change", () => {
+        const valor = filtro.value.toLowerCase().trim();
+
+        filas.forEach(fila => {
+            const descripcion = fila.cells[1].textContent.toLowerCase().trim();
+            if (valor === "" || descripcion === valor) {
+                fila.style.display = "";
+            } else {
+                fila.style.display = "none";
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
