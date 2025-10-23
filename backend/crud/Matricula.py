@@ -127,9 +127,9 @@ def execute_sp_consulta_matricula(
         # Ejecutar el SP con parámetros seguros (incluyendo @UUsuario y @HHost)
         sql = text("""
             EXEC SP_Consulta_Matricula_Unidad_Academica 
-                @Unidad_Academica = :unidad, 
+                @UUnidad_Academica = :unidad, 
                 @Pperiodo = :periodo, 
-                @nivel = :nivel, 
+                @NNivel = :nivel, 
                 @UUsuario = :usuario, 
                 @HHost = :host
         """)
