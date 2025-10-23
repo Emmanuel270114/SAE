@@ -10,7 +10,7 @@ class Usuario(Base):
     Id_Unidad_Academica: Mapped[int] = mapped_column(Integer) #mapped_column(ForeignKey("Cat_Unidad_Academica.Id_Unidad_Academica"))
     Id_Rol: Mapped[int] = mapped_column(Integer)#mapped_column(ForeignKey("Cat_Roles.Id_Rol"))
     Usuario: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-    Password: Mapped[str] = mapped_column("Contraseña", String(2000), nullable=False)
+    Password: Mapped[str] = mapped_column("Contrasena", String(2000), nullable=False)
     Email: Mapped[str] = mapped_column(String(255), unique=True)
     Fecha_Inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now(timezone.utc))
     Fecha_Modificacion: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now(timezone.utc))

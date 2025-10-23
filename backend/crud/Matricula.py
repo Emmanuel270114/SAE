@@ -115,7 +115,7 @@ def execute_sp_consulta_matricula(
     """
     try:
         # Ejecutar el SP con parámetros seguros
-        sql = text("EXEC SP_Consulta_Matricula_Unidad_Academica @Unidad_Academica = :unidad, @periodo = :periodo, @nivel = :nivel")
+        sql = text("EXEC SP_Consulta_Matricula_Unidad_Academica @UUnidad_Academica = :unidad, @PPeriodo = :periodo, @nivel = :nivel")
         result = db.execute(sql, {'unidad': unidad_sigla, 'periodo': periodo, 'nivel': nivel})
         rows = result.fetchall()
 
