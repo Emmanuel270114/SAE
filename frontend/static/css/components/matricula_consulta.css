@@ -157,7 +157,7 @@ h2 {
 }
 
 .semestre-tab.semaforo-estado-2 {
-    border-left: 6px solid var(--semaforo-color, #ffbb33);
+    border-left: 6px solid var(--semaforo-color, #ffe149);
     background: linear-gradient(135deg, rgba(255, 187, 51, 0.1), rgba(255, 187, 51, 0.05));
 }
 
@@ -168,21 +168,67 @@ h2 {
 
 /* Cuando la pestaña está activa, mantener el semáforo pero con más intensidad */
 .semestre-tab.active.semaforo-estado-1 {
-    background: linear-gradient(135deg, #6e0343, #a73447);
+    background: linear-gradient(135deg, #6e0343, #ff4444);
     border-left: 6px solid var(--semaforo-color, #ff4444);
     box-shadow: 0 4px 10px rgba(139, 38, 53, 0.3), 0 0 0 2px var(--semaforo-color, #ff4444);
 }
 
 .semestre-tab.active.semaforo-estado-2 {
-    background: linear-gradient(135deg, #6e0343, #a73447);
-    border-left: 6px solid var(--semaforo-color, #ffbb33);
-    box-shadow: 0 4px 10px rgba(139, 38, 53, 0.3), 0 0 0 2px var(--semaforo-color, #ffbb33);
+    background: linear-gradient(135deg, #6e0343, #ffe149);
+    border-left: 6px solid var(--semaforo-color, #ffe149);
+    box-shadow: 0 4px 10px rgba(139, 38, 53, 0.3), 0 0 0 2px var(--semaforo-color, #ffe149);
 }
 
 .semestre-tab.active.semaforo-estado-3 {
-    background: linear-gradient(135deg, #6e0343, #a73447);
+    background: linear-gradient(135deg, #6e0343, #00C851);
     border-left: 6px solid var(--semaforo-color, #00C851);
     box-shadow: 0 4px 10px rgba(139, 38, 53, 0.3), 0 0 0 2px var(--semaforo-color, #00C851);
+}
+
+
+/* Leyenda del Semáforo */
+.semaforo-leyenda {
+    background-color: #f8f9fa;
+    border: 2px solid #6e0343;
+    border-radius: 8px;
+    padding: 12px 20px;
+    margin: 10px auto 15px auto;
+    max-width: 600px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 25px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.leyenda-titulo {
+    font-size: 15px;
+    margin-right: 5px;
+}
+
+.leyenda-items {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.leyenda-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.leyenda-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.leyenda-texto {
+    font-size: 14px;
+    color: #333;
+    font-weight: 500;
 }
 
 /* Navegación de Turnos */
@@ -199,6 +245,7 @@ h2 {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex: 1;
 }
 
 .turno-label {
@@ -214,9 +261,18 @@ h2 {
     border-radius: 6px;
 }
 
+.semestre-display {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 .turno-buttons {
     display: flex;
     gap: 10px;
+    flex: 1;
+    justify-content: flex-end;
 }
 
 .btn-turno {
@@ -723,6 +779,15 @@ td .matricula-pair { flex-wrap:nowrap; }
     .turno-display {
         flex-direction: column;
         gap: 5px;
+        justify-content: center;
+    }
+    
+    .semestre-display {
+        justify-content: center;
+    }
+    
+    .turno-buttons {
+        justify-content: center;
     }
     
     .grupo-nav {

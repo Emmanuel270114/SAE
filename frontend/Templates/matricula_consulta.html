@@ -86,7 +86,26 @@
             Unidad Académica: <strong>{{ unidad_actual.Nombre if unidad_actual else 'No definida' }}</strong>
         </div>
     </div>
-
+    <!-- Leyenda del Semáforo -->
+    <div class="semaforo-leyenda">
+        <div class="leyenda-titulo">
+            <span style="font-weight: 600; color: #6e0343;">📊 Estado de Semestres:</span>
+        </div>
+        <div class="leyenda-items">
+            <div class="leyenda-item">
+                <div class="leyenda-color" style="background-color: #ff4444;"></div>
+                <span class="leyenda-texto">Sin Datos</span>
+            </div>
+            <div class="leyenda-item">
+                <div class="leyenda-color" style="background-color: #ffbb33;"></div>
+                    <span class="leyenda-texto">Datos Parciales</span>
+                </div>
+            <div class="leyenda-item">
+                <div class="leyenda-color" style="background-color: #00C851;"></div>
+                <span class="leyenda-texto">Datos Completos</span>
+            </div>
+        </div>
+    </div>
     <!-- Sección de Captura con tabla completa -->
     <div class="captura-container">
         <!-- Pestañas de Semestres -->
@@ -94,12 +113,19 @@
             <!-- Las pestañas se generarán dinámicamente con JavaScript -->
         </div>
 
-        <!-- Navegación de Turnos -->
+        <!-- Navegación de Turnos con Semestre integrado -->
         <div class="turno-navigation">
             <div class="turno-display">
                 <span class="turno-label">Turno:</span>
                 <span class="turno-nombre" id="turno-nombre">Matutino</span>
             </div>
+            
+            <div class="semestre-display">
+                <h2 id="semestre-titulo" style="margin:0; font-size:28px; font-weight:700; color:#ffffff;">
+                    Semestre <span id="semestre-num">1</span>
+                </h2>
+            </div>
+            
             <div class="turno-buttons">
                 <button type="button" class="btn-turno" id="btn-turno-anterior" onclick="cambiarTurno(-1)">
                     ← Anterior
@@ -110,11 +136,6 @@
             </div>
         </div>
         
-        <!-- Título indicando que semestre selecciono para llenar, dependiendo de la pestaña en la que esté -->
-        <h2 id="semestre-titulo" style="margin:6px 0 8px 10px; display:center; font-size:30px; font-weight:600; color:#6e0343;">
-            Semestre <span id="semestre-num">1</span>
-        </h2>
-
         <script>
             // Actualiza el título cuando cambie el input oculto de semestre
             (function(){
@@ -173,8 +194,8 @@
             <button type="button" class="btn-secondary" onclick="limpiarFormulario()">
                 🧹 Limpiar Formulario
             </button>
-            <button type="button" class="btn-secondary" onclick="validarCamposVacios()">
-                ✓ Validar
+            <button type="button" class="btn-success" onclick="validarCapturaSemestre()">
+                ✅ Validar y Finalizar Captura
             </button>
         </div>
     </div>
@@ -263,13 +284,17 @@
     function procesarEstadosSemaforoDelSP(rows) {
         console.log('🚦 === PROCESANDO ESTADOS DE SEMÁFORO DEL SP ===');
         
-        // Limpiar estados anteriores
-        estadosSemaforoPorSemestre = {};
+        // NO limpiar estados anteriores - queremos preservar estados validados
+        // estadosSemaforoPorSemestre = {}; // ❌ ELIMINADO
         
         if (!rows || rows.length === 0) {
             console.log('⚠️ No hay rows del SP para procesar estados');
             return;
         }
+        
+        // Cargar estados validados desde localStorage
+        const estadosValidados = cargarEstadosValidadosDeLocalStorage();
+        console.log('💾 Estados validados desde localStorage:', estadosValidados);
         
         // Mapeo de semestres a números
         const semestreANumero = {
@@ -294,12 +319,18 @@
                 const semestreNum = semestreANumero[semestre] || parseInt(semestre) || null;
                 
                 if (semestreNum) {
-                    // Si ya existe un estado para este semestre, mantener el de mayor prioridad
-                    if (!estadosSemaforoPorSemestre[semestreNum] || idSemaforo > estadosSemaforoPorSemestre[semestreNum]) {
-                        estadosSemaforoPorSemestre[semestreNum] = idSemaforo;
+                    // NUEVA LÓGICA: Preservar estados validados (estado 3)
+                    if (estadosValidados[semestreNum] === 3) {
+                        // Este semestre ya fue validado, NO sobrescribir
+                        console.log(`🔒 Semestre ${semestreNum} YA VALIDADO - Preservando estado 3`);
+                        estadosSemaforoPorSemestre[semestreNum] = 3;
+                    } else {
+                        // Semestre no validado, usar estado del SP
+                        if (!estadosSemaforoPorSemestre[semestreNum] || idSemaforo > estadosSemaforoPorSemestre[semestreNum]) {
+                            estadosSemaforoPorSemestre[semestreNum] = idSemaforo;
+                            console.log(`🚦 Semestre "${semestre}" (${semestreNum}) -> Estado ${idSemaforo} del SP`);
+                        }
                     }
-                    
-                    console.log(`🚦 Semestre "${semestre}" (${semestreNum}) -> Estado ${idSemaforo}`);
                 }
             }
         });
@@ -370,13 +401,24 @@
                 sexoFinal = 'F';
             }
 
+            // Buscar el ID del grupo de edad en base al valor
+            // grupoEdad del SP es el VALOR ("18"), necesitamos el ID (4)
+            const grupoEdadObj = gruposEdad.find(g => String(g.Grupo_Edad) === String(grupoEdad));
+            const grupoEdadId = grupoEdadObj ? grupoEdadObj.Id_Grupo_Edad : grupoEdad;
+            
+            if (!grupoEdadObj) {
+                console.warn(`⚠️ No se encontró ID para grupo de edad "${grupoEdad}", usando valor directo`);
+            }
+
             // Inicializar objeto del semestre si no existe
             if (!datosPorSemestre[semestreId]) {
                 datosPorSemestre[semestreId] = {};
             }
 
-            // Crear clave única: tipoId_grupoEdad_sexo
-            const key = `${tipoId}_${grupoEdad}_${sexoFinal}`;
+            // Crear clave única: tipoId_grupoEdadID_sexo (USAR ID, NO VALOR)
+            const key = `${tipoId}_${grupoEdadId}_${sexoFinal}`;
+            
+            console.log(`🔑 Fila ${index}: Semestre ${semestreId}, Grupo "${grupoEdad}"→ID:${grupoEdadId}, Clave: ${key}`);
             
             // Guardar el valor
             const valor = parseInt(matricula) || 0;
@@ -409,7 +451,10 @@
             console.log('Número de rows:', rows.length);
             console.log('datosMap:', datosMap);
             
-            // NUEVA LÓGICA: Extraer estados de semáforo del SP
+            // PRIMERO: Cargar estados validados guardados en localStorage
+            cargarEstadosValidadosDeLocalStorage();
+            
+            // NUEVA LÓGICA: Extraer estados de semáforo del SP (ahora respeta los estados validados)
             procesarEstadosSemaforoDelSP(rows);
             
             // PROCESAR Y GUARDAR DATOS DE TODOS LOS SEMESTRES
@@ -615,11 +660,13 @@
 
             // Renderizar filas por TODOS los grupos de edad (no solo los que tienen datos)
             gruposEdadOrdenados.forEach((edadObj, index) => {
-                const grupoId = String(edadObj.Grupo_Edad); // Este es el valor real: "18", "19", etc.
-                const grupoLabel = grupoId;
+                const grupoIdBD = edadObj.Id_Grupo_Edad; // Este es el ID en la BD: 4, 5, 6, etc.
+                const grupoValor = String(edadObj.Grupo_Edad); // Este es el valor real: "18", "19", etc.
+                const grupoLabel = grupoValor;
                 
                 // Buscar si hay datos para este grupo de edad en el edadMap
-                const edadData = edadMap[grupoId] || {
+                // El edadMap usa el VALOR como clave ("18"), no el ID
+                const edadData = edadMap[grupoValor] || {
                     grupoLabel: grupoLabel,
                     'Nuevo Ingreso': { tipoId: '1', M: 0, F: 0 },
                     'Reingreso': { tipoId: '2', M: 0, F: 0 },
@@ -627,10 +674,10 @@
                 };
                 
                 // Log detallado para depuración
-                if (edadMap[grupoId]) {
-                    console.log(`✅ Fila ${index}: Grupo "${grupoId}" - Tiene datos:`, edadMap[grupoId]);
+                if (edadMap[grupoValor]) {
+                    console.log(`✅ Fila ${index}: Grupo "${grupoValor}" (ID:${grupoIdBD}) - Tiene datos:`, edadMap[grupoValor]);
                 } else {
-                    console.log(`⚪ Fila ${index}: Grupo "${grupoId}" - Sin datos (vacío)`);
+                    console.log(`⚪ Fila ${index}: Grupo "${grupoValor}" (ID:${grupoIdBD}) - Sin datos (vacío)`);
                 }
                 const tr = document.createElement('tr');
                 tr.style.borderBottom = '1px solid #e0e0e0';
@@ -640,7 +687,7 @@
 
                 // Columna de Edad (solo una vez)
                 const tdEdad = document.createElement('td');
-                tdEdad.textContent = edadData.grupoLabel || grupoId;
+                tdEdad.textContent = edadData.grupoLabel || grupoValor;
                 tdEdad.style.padding = '12px';
                 tdEdad.style.textAlign = 'center';
                 tdEdad.style.fontWeight = '500';
@@ -663,7 +710,7 @@
                     const valorM = datos.M || 0;
                     const valorF = datos.F || 0;
                     
-                    console.log(`🎯 Generando inputs: ${tipoCategoria} - Grupo ${grupoId} - M:${valorM}, F:${valorF}`);
+                    console.log(`🎯 Generando inputs: ${tipoCategoria} - Grupo "${grupoValor}" (ID:${grupoIdBD}) - M:${valorM}, F:${valorF}`);
                     
                     tdTipo.innerHTML = `
                     <div style="display:inline-flex; gap:6px; justify-content:center; align-items:center; width:auto;">
@@ -671,12 +718,12 @@
                         <div style="display:inline-flex; align-items:center; gap:3px; padding:2px 4px; background:#e3f2fd; border-radius:4px; border:1px solid #90caf9; line-height:1;">
                             <div style="font-weight:700;color:#1976d2;font-size:11px;min-width:14px;text-align:center;">H</div>
                             <input type="number" 
-                                id="input_${tipoId}_${grupoId}_M" 
+                                id="input_${tipoId}_${grupoIdBD}_M" 
                                 value="${valorM > 0 ? valorM : ''}" 
                                 min="0" 
                                 class="input-matricula-nueva" 
                                 data-tipo-ingreso="${tipoId}" 
-                                data-grupo-edad="${grupoId}" 
+                                data-grupo-edad="${grupoIdBD}" 
                                 data-sexo="M" 
                                 style="width:42px;padding:2px 3px;border:2px solid #2196f3;border-radius:3px;background:#fff;color:#1976d2;font-weight:600;text-align:center;font-size:11px;line-height:1.1;" 
                                 placeholder="">
@@ -685,12 +732,12 @@
                         <div style="display:inline-flex; align-items:center; gap:3px; padding:2px 4px; background:#fce4ec; border-radius:4px; border:1px solid #f48fb1; line-height:1;">
                             <div style="font-weight:700;color:#c2185b;font-size:11px;min-width:14px;text-align:center;">M</div>
                             <input type="number" 
-                                id="input_${tipoId}_${grupoId}_F" 
+                                id="input_${tipoId}_${grupoIdBD}_F" 
                                 value="${valorF > 0 ? valorF : ''}" 
                                 min="0" 
                                 class="input-matricula-nueva" 
                                 data-tipo-ingreso="${tipoId}" 
-                                data-grupo-edad="${grupoId}" 
+                                data-grupo-edad="${grupoIdBD}" 
                                 data-sexo="F" 
                                 style="width:42px;padding:2px 3px;border:2px solid #e91e63;border-radius:3px;background:#fff;color:#c2185b;font-weight:600;text-align:center;font-size:11px;line-height:1.1;" 
                                 placeholder="">
@@ -993,6 +1040,81 @@
     // Almacén de estados de semáforo por semestre (viene del SP)
     let estadosSemaforoPorSemestre = {};
 
+    // ============================================
+    // FUNCIONES PARA PERSISTENCIA DE SEMÁFOROS
+    // ============================================
+    
+    /**
+     * Genera una clave única para localStorage basada en los filtros actuales
+     * Formato: "semaforo_periodoId_programaId_modalidadId_turnoId"
+     */
+    function generarClaveLocalStorage() {
+        const periodo = document.getElementById('periodo').value;
+        const programa = document.getElementById('programa').value;
+        const modalidad = document.getElementById('modalidad').value;
+        const turno = document.getElementById('turno').value;
+        
+        return `semaforo_${periodo}_${programa}_${modalidad}_${turno}`;
+    }
+    
+    /**
+     * Guarda los estados validados (estado 3) en localStorage
+     */
+    function guardarEstadosValidadosEnLocalStorage() {
+        const clave = generarClaveLocalStorage();
+        
+        // Filtrar solo los semestres con estado 3 (validados)
+        const estadosValidados = {};
+        for (let semestre in estadosSemaforoPorSemestre) {
+            if (estadosSemaforoPorSemestre[semestre] === 3) {
+                estadosValidados[semestre] = 3;
+            }
+        }
+        
+        try {
+            localStorage.setItem(clave, JSON.stringify(estadosValidados));
+            console.log(`💾 Estados validados guardados en localStorage:`, estadosValidados);
+        } catch (e) {
+            console.error('❌ Error al guardar en localStorage:', e);
+        }
+    }
+    
+    /**
+     * Carga los estados validados desde localStorage
+     */
+    function cargarEstadosValidadosDeLocalStorage() {
+        const clave = generarClaveLocalStorage();
+        
+        try {
+            const datos = localStorage.getItem(clave);
+            if (datos) {
+                const estadosValidados = JSON.parse(datos);
+                console.log(`📂 Estados validados cargados desde localStorage:`, estadosValidados);
+                return estadosValidados;
+            }
+        } catch (e) {
+            console.error('❌ Error al cargar desde localStorage:', e);
+        }
+        
+        return {}; // Retornar objeto vacío si no hay datos
+    }
+    
+    /**
+     * Marca un semestre como validado (estado 3) y lo persiste
+     */
+    function marcarSemestreComoValidado(semestreNum) {
+        console.log(`✅ Marcando semestre ${semestreNum} como validado (estado 3)`);
+        
+        // Actualizar en memoria
+        estadosSemaforoPorSemestre[semestreNum] = 3;
+        
+        // Persistir en localStorage
+        guardarEstadosValidadosEnLocalStorage();
+        
+        // Actualizar UI
+        actualizarColoresPestanas();
+    }
+
     // Función para cambiar turno
     function cambiarTurno(direccion) {
         turnoActualIndex += direccion;
@@ -1216,19 +1338,21 @@
     }
 
     function guardarMatricula() {
-        // Validar que al menos un campo tenga datos
+        // Validar que al menos un campo tenga datos (ahora aceptando 0)
         const inputs = document.querySelectorAll('input.input-matricula-nueva');
         let hasData = false;
         
         for (let input of inputs) {
-            if (parseInt(input.value) > 0) {
+            // Aceptar cualquier valor numérico válido (incluyendo 0)
+            const valor = parseInt(input.value);
+            if (!isNaN(valor) && valor >= 0) {
                 hasData = true;
                 break;
             }
         }
         
         if (!hasData) {
-            alert('⚠️ Por favor, ingrese al menos un valor mayor a 0 antes de guardar.');
+            alert('⚠️ Por favor, ingrese datos antes de guardar.');
             return;
         }
 
@@ -1254,14 +1378,15 @@
             datos_matricula: {}
         };
 
-        // Obtener datos de cada input
+        // Obtener datos de cada input (ahora incluyendo valores de 0)
         inputs.forEach(input => {
             const tipoIngreso = input.getAttribute('data-tipo-ingreso');
             const grupoEdad = input.getAttribute('data-grupo-edad');
             const sexo = input.getAttribute('data-sexo');
             const valor = parseInt(input.value) || 0;
             
-            if (valor > 0) {
+            // Aceptar todos los valores >= 0 (incluyendo 0)
+            if (valor >= 0) {
                 const key = `${tipoIngreso}_${grupoEdad}_${sexo}`;
                 data.datos_matricula[key] = {
                     tipo_ingreso: tipoIngreso,
@@ -1427,6 +1552,264 @@
             }
         } else {
             alert('✓ Todos los campos están completos.');
+        }
+    }
+
+    // Función para validar y finalizar la captura del semestre actual
+    async function validarCapturaSemestre() {
+        console.log('🔍 === VALIDANDO CAPTURA DEL SEMESTRE ===');
+        
+        // Obtener el semestre actual
+        const semestreActual = parseInt(document.getElementById('semestre').value);
+        const semestreNombre = semestresMap[semestreActual] || `Semestre ${semestreActual}`;
+        
+        // Obtener todos los inputs
+        const inputs = document.querySelectorAll('input.input-matricula-nueva');
+        
+        // PASO 1: Rellenar campos vacíos con '0'
+        let camposRellenados = 0;
+        inputs.forEach(input => {
+            if (!input.value || input.value.trim() === '') {
+                input.value = '0';
+                camposRellenados++;
+            }
+        });
+        
+        if (camposRellenados > 0) {
+            console.log(`📝 Se rellenaron ${camposRellenados} campos vacíos con '0'`);
+        }
+        
+        // PASO 2: Contar datos (ahora incluyendo los 0)
+        let totalDatos = 0;
+        let camposConDatos = 0;
+        let camposConCero = 0;
+        
+        inputs.forEach(input => {
+            const valor = parseInt(input.value) || 0;
+            totalDatos += valor;
+            
+            if (valor > 0) {
+                camposConDatos++;
+            } else if (valor === 0) {
+                camposConCero++;
+            }
+        });
+        
+        console.log(`📊 Estadísticas:`);
+        console.log(`   - Campos con datos (>0): ${camposConDatos}`);
+        console.log(`   - Campos en cero: ${camposConCero}`);
+        console.log(`   - Total de estudiantes: ${totalDatos}`);
+        console.log(`   - Campos rellenados automáticamente: ${camposRellenados}`);
+        
+        // PASO 3: Confirmar con el usuario
+        let mensajeConfirmacion = `¿Desea validar y finalizar la captura del ${semestreNombre}?\n\n`;
+        mensajeConfirmacion += `📊 Campos con datos: ${camposConDatos}\n`;
+        mensajeConfirmacion += `📈 Total de estudiantes: ${totalDatos}\n`;
+        
+        if (camposRellenados > 0) {
+            mensajeConfirmacion += `\n✏️ Se rellenaron ${camposRellenados} campos vacíos con '0'\n`;
+        }
+        
+        mensajeConfirmacion += `\n⚠️ Esta acción:\n`;
+        mensajeConfirmacion += `• Guardará todos los datos en la base de datos (incluyendo ceros)\n`;
+        mensajeConfirmacion += `• Marcará el semestre como COMPLETADO (🟢)\n`;
+        mensajeConfirmacion += `• Registrará la validación en bitácora\n\n`;
+        mensajeConfirmacion += `¿Continuar?`;
+        
+        const confirmar = confirm(mensajeConfirmacion);
+        
+        if (!confirmar) {
+            console.log('❌ Usuario canceló la validación');
+            return;
+        }
+        
+        // PASO 4: Recalcular totales con los nuevos valores
+        calcularTotales();
+        
+        // Obtener parámetros antes de guardar
+        const periodo = document.getElementById('periodo').value;
+        const programa = document.getElementById('programa').value;
+        const modalidad = document.getElementById('modalidad').value;
+        const semestre = document.getElementById('semestre').value;
+        const turno = document.getElementById('turno').value;
+        
+        if (!periodo || !programa || !modalidad || !semestre || !turno) {
+            alert('⚠️ Por favor, complete todos los filtros antes de validar.');
+            return;
+        }
+        
+        // Mostrar indicador de carga
+        const btnValidar = event.target;
+        const textoOriginal = btnValidar.textContent;
+        btnValidar.textContent = '⏳ Guardando datos...';
+        btnValidar.disabled = true;
+        
+        try {
+            // PASO 5: PRIMERO guardar TODOS los datos en la base de datos
+            console.log('💾 === GUARDANDO DATOS EN LA BASE DE DATOS ===');
+            
+            // Preparar datos para guardar (igual que en guardarMatricula)
+            const data = {
+                periodo: periodo,
+                programa: programa,
+                semestre: semestre,
+                modalidad: modalidad,
+                turno: turno,
+                datos_matricula: {}
+            };
+            
+            // Recopilar datos de todos los inputs
+            inputs.forEach(input => {
+                const tipoIngreso = input.getAttribute('data-tipo-ingreso');
+                const grupoEdad = input.getAttribute('data-grupo-edad');
+                const sexo = input.getAttribute('data-sexo');
+                const valor = parseInt(input.value) || 0;
+                
+                if (valor >= 0) {
+                    const key = `${tipoIngreso}_${grupoEdad}_${sexo}`;
+                    data.datos_matricula[key] = {
+                        tipo_ingreso: tipoIngreso,
+                        grupo_edad: grupoEdad,
+                        sexo: sexo,
+                        matricula: valor
+                    };
+                }
+            });
+            
+            console.log(`📤 Enviando ${Object.keys(data.datos_matricula).length} registros a la base de datos...`);
+            
+            // Guardar datos en Temp_Matricula
+            const saveResponse = await fetch('/matricula/guardar_captura_completa', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const saveResult = await saveResponse.json();
+            console.log('💾 Respuesta del guardado:', saveResult);
+            
+            if (saveResult.error) {
+                console.error('❌ Error al guardar datos:', saveResult.error);
+                alert(`❌ Error al guardar los datos:\n\n${saveResult.error}\n\nNo se puede continuar con la validación.`);
+                return;
+            }
+            
+            console.log('✅ Datos guardados exitosamente en Temp_Matricula');
+            console.log(`📊 Registros guardados: ${saveResult.registros_guardados || 'N/A'}`);
+            
+            // PASO 5.1: Actualizar Matricula desde Temp_Matricula
+            console.log('🔄 === ACTUALIZANDO TABLA MATRICULA ===');
+            btnValidar.textContent = '⏳ Actualizando matrícula...';
+            
+            const updateResponse = await fetch('/matricula/actualizar_matricula', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            });
+            
+            const updateResult = await updateResponse.json();
+            console.log('🔄 Respuesta de actualización:', updateResult);
+            
+            if (updateResult.error) {
+                console.error('❌ Error al actualizar Matricula:', updateResult.error);
+                alert(`❌ Error al actualizar la tabla Matricula:\n\n${updateResult.error}\n\nLos datos están en Temp_Matricula pero no se movieron a Matricula.`);
+                return;
+            }
+            
+            console.log('✅ Tabla Matricula actualizada exitosamente');
+            console.log(`📊 ${updateResult.mensaje || 'Actualización completada'}`);
+            
+            // Pequeña pausa para asegurar que se completó la transacción
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // PASO 6: Ahora SÍ validar y finalizar (solo actualiza semáforo)
+            console.log('🚀 === VALIDANDO Y FINALIZANDO CAPTURA ===');
+            btnValidar.textContent = '⏳ Validando y finalizando...';
+            
+            const response = await fetch('/matricula/validar_captura_semestre', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    periodo: periodo,
+                    programa: programa,
+                    modalidad: modalidad,
+                    semestre: semestre,
+                    turno: turno
+                })
+            });
+            
+            const resultado = await response.json();
+            console.log('📥 Respuesta del backend:', resultado);
+            
+            if (resultado.error) {
+                console.error('❌ Error del backend:', resultado.error);
+                alert(`❌ Error al validar la captura:\n\n${resultado.error}`);
+                return;
+            }
+            
+            if (resultado.success) {
+                console.log('✅ Validación exitosa!');
+                
+                // Actualizar estado del semáforo usando el valor verificado del backend
+                const estadoVerificado = resultado.estado_semaforo || 3;
+                
+                // Usar la función de persistencia para marcar el semestre
+                marcarSemestreComoValidado(semestreActual);
+                console.log(`🚦 Semestre ${semestreActual} actualizado con estado verificado: ${estadoVerificado} (guardado en memoria y localStorage)`);
+                
+                if (estadoVerificado === 3) {
+                    console.log('🟢 Confirmación: Semestre marcado como COMPLETADO en la base de datos');
+                } else {
+                    console.warn(`⚠️ Advertencia: Estado del semestre es ${estadoVerificado}, no 3 (completado)`);
+                }
+                
+                // Actualizar colores de pestañas
+                actualizarColoresPestanas();
+                
+                // Mensaje de éxito personalizado según el estado
+                let mensajeEstado = '';
+                if (estadoVerificado === 3) {
+                    mensajeEstado = '🟢 El semestre ha sido marcado como COMPLETADO';
+                } else if (estadoVerificado === 2) {
+                    mensajeEstado = '🟡 El semestre tiene datos parciales';
+                } else {
+                    mensajeEstado = `Estado del semestre: ${estadoVerificado}`;
+                }
+                
+                alert(
+                    `✅ ${resultado.mensaje || 'Captura validada exitosamente'}\n\n` +
+                    `${mensajeEstado}\n` +
+                    `📊 Total de estudiantes: ${totalDatos}\n\n` +
+                    `Los datos han sido guardados en la base de datos.`
+                );
+                
+                // Si el SP devolvió datos actualizados, reprocesarlos
+                if (resultado.rows && resultado.rows.length > 0) {
+                    console.log('🔄 Procesando datos actualizados del SP...');
+                    procesarEstadosSemaforoDelSP(resultado.rows);
+                    procesarYGuardarDatosPorSemestre(resultado.rows);
+                    actualizarColoresPestanas();
+                }
+                
+                console.log('✅ Validación completada exitosamente');
+            } else {
+                console.warn('⚠️ Respuesta inesperada del backend');
+                alert('⚠️ No se pudo confirmar la validación. Por favor, verifique los datos.');
+            }
+            
+        } catch (error) {
+            console.error('❌ Error en la petición:', error);
+            alert(`❌ Error al validar la captura:\n\n${error.message}`);
+        } finally {
+            // Restaurar botón
+            btnValidar.textContent = textoOriginal;
+            btnValidar.disabled = false;
         }
     }
 

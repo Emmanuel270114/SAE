@@ -998,6 +998,7 @@ async def diagnostico_sp(request: Request, db: Session = Depends(get_db)):
         traceback.print_exc()
         return {"error": str(e)}
 
+
 @router.post("/limpiar_temp_matricula")
 async def limpiar_temp_matricula(db: Session = Depends(get_db)):
     """
@@ -1016,4 +1017,261 @@ async def limpiar_temp_matricula(db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         return {"error": f"Error al limpiar Temp_Matricula: {str(e)}"}
+
+
+@router.post("/validar_captura_semestre")
+async def validar_captura_semestre(request: Request, db: Session = Depends(get_db)):
+    """
+    Endpoint para validar y finalizar la captura de un semestre específico.
+    Ejecuta el SP SP_Actualiza_Matricula_Por_Semestre_AU que:
+    1. Actualiza la matrícula completa
+    2. Cambia el semáforo del semestre a "Completado" (ID=3)
+    3. Registra la acción en bitácora
+    4. Devuelve los datos actualizados
+    """
+    try:
+        # Obtener datos del request
+        data = await request.json()
+        
+        # Parámetros necesarios
+        periodo = data.get('periodo')
+        programa = data.get('programa')
+        modalidad = data.get('modalidad')
+        semestre = data.get('semestre')
+        turno = data.get('turno')
+        
+        # Obtener datos del usuario desde cookies
+        id_unidad_academica = int(request.cookies.get("id_unidad_academica", 0))
+        id_nivel = int(request.cookies.get("id_nivel", 0))
+        nombre_usuario = request.cookies.get("nombre_usuario", "")
+        apellidoP_usuario = request.cookies.get("apellidoP_usuario", "")
+        apellidoM_usuario = request.cookies.get("apellidoM_usuario", "")
+        
+        # Construir nombre completo del usuario
+        nombre_completo = f"{nombre_usuario} {apellidoP_usuario} {apellidoM_usuario}".strip()
+        usuario_sp = nombre_completo or 'sistema'
+        
+        # Obtener host
+        host_sp = get_request_host(request)
+        
+        print(f"\n{'='*60}")
+        print(f"VALIDANDO CAPTURA DE SEMESTRE")
+        print(f"{'='*60}")
+        print(f"Periodo: {periodo}")
+        print(f"Programa ID: {programa}")
+        print(f"Modalidad ID: {modalidad}")
+        print(f"Semestre ID: {semestre}")
+        print(f"Turno ID: {turno}")
+        print(f"Usuario: {usuario_sp}")
+        print(f"Host: {host_sp}")
+        
+        # Validar parámetros obligatorios
+        if not all([periodo, programa, modalidad, semestre, turno]):
+            return {
+                "error": "Faltan parámetros obligatorios",
+                "detalles": {
+                    "periodo": periodo,
+                    "programa": programa,
+                    "modalidad": modalidad,
+                    "semestre": semestre,
+                    "turno": turno
+                }
+            }
+        
+        # Obtener nombres literales desde la BD para el SP
+        # Unidad Académica
+        unidad = db.query(Unidad_Academica).filter(
+            Unidad_Academica.Id_Unidad_Academica == id_unidad_academica
+        ).first()
+        unidad_sigla = unidad.Sigla if unidad else ''
+        
+        # Programa
+        programa_obj = db.query(Programas).filter(
+            Programas.Id_Programa == int(programa)
+        ).first()
+        programa_nombre = programa_obj.Nombre_Programa if programa_obj else ''
+        
+        # Modalidad
+        modalidad_obj = db.query(Modalidad).filter(
+            Modalidad.Id_Modalidad == int(modalidad)
+        ).first()
+        modalidad_nombre = modalidad_obj.Modalidad if modalidad_obj else ''
+        
+        # Semestre
+        semestre_obj = db.query(Semestre).filter(
+            Semestre.Id_Semestre == int(semestre)
+        ).first()
+        semestre_nombre = semestre_obj.Semestre if semestre_obj else ''
+        
+        # Nivel
+        nivel_obj = db.query(Nivel).filter(
+            Nivel.Id_Nivel == id_nivel
+        ).first()
+        nivel_nombre = nivel_obj.Nivel if nivel_obj else ''
+        
+        print(f"\n📋 Valores literales para el SP:")
+        print(f"Unidad Académica: {unidad_sigla}")
+        print(f"Programa: {programa_nombre}")
+        print(f"Modalidad: {modalidad_nombre}")
+        print(f"Semestre: {semestre_nombre}")
+        print(f"Nivel: {nivel_nombre}")
+        
+        # Validar que se obtuvieron todos los valores
+        if not all([unidad_sigla, programa_nombre, modalidad_nombre, semestre_nombre, nivel_nombre]):
+            return {
+                "error": "No se pudieron obtener los nombres literales de los catálogos",
+                "detalles": {
+                    "unidad": unidad_sigla,
+                    "programa": programa_nombre,
+                    "modalidad": modalidad_nombre,
+                    "semestre": semestre_nombre,
+                    "nivel": nivel_nombre
+                }
+            }
+        
+        # Ejecutar el SP SP_Actualiza_Matricula_Por_Semestre_AU
+        sp_query = text("""
+            EXEC [dbo].[SP_Actualiza_Matricula_Por_Semestre_AU]
+                @UUnidad_Academica = :unidad_academica,
+                @PPrograma = :programa,
+                @MModalidad = :modalidad,
+                @SSemestre = :semestre,
+                @UUsuario = :usuario,
+                @PPeriodo = :periodo,
+                @HHost = :host,
+                @NNivel = :nivel
+        """)
+        
+        result = db.execute(sp_query, {
+            'unidad_academica': unidad_sigla,
+            'programa': programa_nombre,
+            'modalidad': modalidad_nombre,
+            'semestre': semestre_nombre,
+            'usuario': usuario_sp,
+            'periodo': periodo,
+            'host': host_sp,
+            'nivel': nivel_nombre
+        })
+        
+        db.commit()
+        
+        # El SP devuelve múltiples result sets, necesitamos el último (datos actualizados)
+        # Consumir todos los result sets intermedios
+        rows_list = []
+        columns = []
+        
+        try:
+            # Iterar sobre todos los result sets
+            while True:
+                # Intentar obtener las filas del result set actual
+                try:
+                    rows_raw = result.fetchall()
+                    if rows_raw:
+                        columns = result.keys()
+                        # Guardar las filas del último result set con datos
+                        rows_list = []
+                        for row in rows_raw:
+                            row_dict = {}
+                            for i, col in enumerate(columns):
+                                val = row[i]
+                                # Convertir tipos especiales
+                                if isinstance(val, datetime):
+                                    val = val.isoformat()
+                                elif val is None:
+                                    val = None
+                                row_dict[col] = val
+                            rows_list.append(row_dict)
+                        print(f"📦 Result set procesado: {len(rows_list)} filas")
+                except Exception as fetch_error:
+                    print(f"⚠️ Error al procesar result set: {fetch_error}")
+                    break
+                
+                # Intentar avanzar al siguiente result set
+                if not result.nextset():
+                    break
+        except Exception as e:
+            print(f"⚠️ Fin de result sets: {e}")
+        
+        print(f"\n✅ SP ejecutado exitosamente")
+        print(f"Filas finales devueltas: {len(rows_list)}")
+        
+        # Consultar directamente el estado del semáforo actualizado desde la tabla
+        # porque el SP de consulta puede no incluir semestres completados
+        print(f"\n🔍 Consultando estado actualizado del semáforo para verificar...")
+        
+        try:
+            query_semaforo = text("""
+                SELECT ssua.Id_Semestre, ssua.id_semaforo, sem.Semestre
+                FROM [dbo].[Semaforo_Semestre_Unidad_Academica] ssua
+                INNER JOIN [dbo].[Cat_Periodo] per ON ssua.Id_Periodo = per.Id_Periodo
+                INNER JOIN [dbo].[Cat_Unidad_Academica] ua ON ssua.Id_Unidad_Academica = ua.Id_Unidad_Academica
+                INNER JOIN [dbo].[Programa_Modalidad] pm ON pm.id_Modalidad_programa = ssua.id_Modalidad_programa
+                INNER JOIN [dbo].[Cat_Modalidad] md ON md.Id_modalidad = pm.Id_modalidad
+                INNER JOIN [dbo].[Cat_Programas] pro ON pm.Id_Programa = pro.Id_Programa
+                INNER JOIN [dbo].[Cat_Semestre] sem ON ssua.Id_Semestre = sem.Id_Semestre
+                WHERE per.Periodo = :periodo
+                    AND ua.sigla = :unidad
+                    AND md.Modalidad = :modalidad
+                    AND pro.Nombre_Programa = :programa
+                    AND sem.Semestre = :semestre
+            """)
+            
+            result_semaforo = db.execute(query_semaforo, {
+                'periodo': periodo,
+                'unidad': unidad_sigla,
+                'modalidad': modalidad_nombre,
+                'programa': programa_nombre,
+                'semestre': semestre_nombre
+            })
+            
+            semaforo_row = result_semaforo.fetchone()
+            estado_semaforo_actualizado = None
+            
+            if semaforo_row:
+                estado_semaforo_actualizado = semaforo_row[1]  # id_semaforo
+                print(f"✅ Estado del semáforo verificado: ID={estado_semaforo_actualizado}")
+                
+                if estado_semaforo_actualizado == 3:
+                    print(f"🟢 Semestre '{semestre_nombre}' marcado como COMPLETADO")
+                else:
+                    print(f"⚠️ ADVERTENCIA: Semestre '{semestre_nombre}' tiene estado {estado_semaforo_actualizado}, se esperaba 3")
+            else:
+                print(f"⚠️ No se encontró registro de semáforo para {semestre_nombre}")
+                
+        except Exception as e_semaforo:
+            print(f"⚠️ Error al consultar semáforo: {e_semaforo}")
+            estado_semaforo_actualizado = None
+        
+        return {
+            "success": True,
+            "mensaje": f"Captura del {semestre_nombre} validada y completada exitosamente",
+            "rows": rows_list,
+            "semestre_validado": semestre_nombre,
+            "estado_semaforo": estado_semaforo_actualizado,
+            "debug": {
+                "sp_ejecutado": "SP_Actualiza_Matricula_Por_Semestre_AU",
+                "parametros": {
+                    "unidad": unidad_sigla,
+                    "programa": programa_nombre,
+                    "modalidad": modalidad_nombre,
+                    "semestre": semestre_nombre,
+                    "usuario": usuario_sp,
+                    "periodo": periodo,
+                    "host": host_sp,
+                    "nivel": nivel_nombre
+                }
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"\n❌ ERROR al validar captura: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return {
+            "error": f"Error al validar la captura del semestre: {str(e)}",
+            "success": False
+        }
+
 
