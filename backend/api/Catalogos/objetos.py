@@ -15,6 +15,9 @@ def objetos_view(
     db: Session = Depends(get_db)
 ):
 
+    Rol = str(request.cookies.get("nombre_rol",""))
+
+
     try:
         # Ejecutar el Stored Procedure con parámetros nombrados
         query = text("""
@@ -35,6 +38,7 @@ def objetos_view(
         "catalogos/objetos.html",
         {
             "request": request,
-            "objetos": data
+            "objetos": data,
+            "rol": Rol
         }
     )

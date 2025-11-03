@@ -12,11 +12,13 @@ router = APIRouter()
 @router.get("/semaforo", response_class=HTMLResponse)
 def semaforo_view(
     request: Request,
-    UUsuario: str = "paco",
     HHost: str = "Test",
     PPeriodo: str = "2025-2026/1",
     db: Session = Depends(get_db)
 ):
+    
+    UUsuario = request.cookies.get("nombre_usuario", "")
+    Rol = request.cookies.get("nombre_rol","")
 
     try:
         # Ejecutar el Stored Procedure con parámetros nombrados
@@ -45,6 +47,7 @@ def semaforo_view(
         "catalogos/semaforo.html",
         {
             "request": request,
-            "semaforo": data
+            "semaforo": data,
+            "rol": Rol
         }
     )

@@ -17,6 +17,15 @@
         </form>
     </div>
 
+
+
+    
+
+
+
+    
+
+
     <!--  Filtro por Unidad Académica -->
     <div class="filtro-ua-box">
         <label for="filtro-ua">Filtrar por Unidad Académica:</label>
@@ -28,21 +37,28 @@
         </select>
     </div>
 
-    <div style="
-    max-height: 400px;       /* Altura máxima visible */
-    overflow-y: auto;        /* Scroll vertical */
-    overflow-x: auto;        /* Scroll horizontal si se necesita */
-    border: 1px solid #ccc;  /* Borde sutil */
+<div style="
+    max-height: 400px;        /* Altura máxima visible */
+    overflow-y: auto;         /* Scroll vertical */
+    overflow-x: auto;         /* Scroll horizontal si se necesita */
+    border: 1px solid #ccc;   /* Borde sutil */
     border-radius: 6px;
     margin-top: 15px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    background-color: #f4f4f4; /* 🔹 Igual que el thead */
 ">
     <table id="tabla-domicilios" style="
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.9em; /* Más compacto */
+        font-size: 0.9em;      /* Más compacto */
+        background-color: white; /* 🔹 Fondo uniforme de tabla */
     ">
-        <thead style="position: sticky; top: 0; background-color: #f4f4f4; z-index: 1;">
+        <thead style="
+            position: sticky;
+            top: 0;
+            background-color: #f4f4f4;
+            z-index: 1;
+        ">
             <tr>
                 <th style="padding: 6px;">Sigla</th>
                 <th style="padding: 6px;">Nombre</th>
@@ -76,6 +92,8 @@
         </tbody>
     </table>
 </div>
+
+
 
 
 

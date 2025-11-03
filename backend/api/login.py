@@ -56,8 +56,6 @@ async def login(
             print(f"DEBUG LOGIN: ID Rol: {id_rol}, Nombre Rol: {nombre_rol}")
             print(f"DEBUG LOGIN: ID Nivel: {id_nivel}, Nombre Nivel: {nombre_nivel}")
             print(f"DEBUG LOGIN: ID Unidad Académica: {id_unidad}")
-            print(f"DEBUG: Sigla unidad académica: {sigla_unidad}")
-
             
             # Verificar si tiene contraseña temporal usando bitácora
             from backend.services.usuario_service import has_temporary_password
