@@ -12,17 +12,11 @@ router = APIRouter()
 @router.get("/domicilios", response_class=HTMLResponse)
 def domicilios_view(
     request: Request,
+    UUsuario: str = "paco",
     HHost: str = "Test",
     PPeriodo: str = "2025-2026/1",
     db: Session = Depends(get_db)
 ):
-    
-
-
-    UUsuario = request.cookies.get("nombre_usuario", "")
-    Rol = request.cookies.get("nombre_rol","")
-
-
     """
     Vista para consultar los domicilios mediante un Stored Procedure.
     """
@@ -44,6 +38,7 @@ def domicilios_view(
         # Convertir el resultado a lista de diccionarios
         data = [dict(row) for row in resultado.mappings().all()]
         print(data)
+
     except Exception as e:
         print("Error al ejecutar SP_Consulta_Catalogo_Unidad_Academica:", e)
         data = []
@@ -53,7 +48,6 @@ def domicilios_view(
         "catalogos/domicilios.html",
         {
             "request": request,
-            "domicilios": data,
-            "rol": Rol
+            "domicilios": data
         }
     )
