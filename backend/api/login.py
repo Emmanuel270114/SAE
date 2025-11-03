@@ -32,6 +32,7 @@ async def login(
             from backend.crud.Usuario import read_user_by_email, read_user_by_username
             from backend.database.models.CatRoles import CatRoles
             from backend.database.models.CatNivel import CatNivel
+            from backend.database.models.CatUnidadAcademica import CatUnidadAcademica
             
             user = read_user_by_email(db, usuario_email)
             if user is None:
@@ -45,14 +46,17 @@ async def login(
             # Obtener nombres del rol y nivel
             rol = db.query(CatRoles).filter(CatRoles.Id_Rol == id_rol).first()
             nivel = db.query(CatNivel).filter(CatNivel.Id_Nivel == id_nivel).first()
+            unidad = db.query(CatUnidadAcademica).filter(CatUnidadAcademica.Id_Unidad_Academica == id_unidad).first()
             
             nombre_rol = rol.Rol if rol else "Usuario"
             nombre_nivel = nivel.Nivel if nivel else "No definido"
+            sigla_unidad = unidad.Sigla if unidad else ''
             
             print(f"DEBUG LOGIN: Usuario {user.Usuario}")
             print(f"DEBUG LOGIN: ID Rol: {id_rol}, Nombre Rol: {nombre_rol}")
             print(f"DEBUG LOGIN: ID Nivel: {id_nivel}, Nombre Nivel: {nombre_nivel}")
             print(f"DEBUG LOGIN: ID Unidad Académica: {id_unidad}")
+            print(f"DEBUG LOGIN: Sigla: {sigla_unidad}")
             
             # Verificar si tiene contraseña temporal usando bitácora
             from backend.services.usuario_service import has_temporary_password
@@ -76,6 +80,7 @@ async def login(
             if id_usuario:
                 response.set_cookie(key="id_usuario", value=str(id_usuario), httponly=True)
             response.set_cookie(key="id_unidad_academica", value=str(id_unidad), httponly=True)
+            response.set_cookie(key="sigla_unidad_academica", value=sigla_unidad, httponly=True)
             response.set_cookie(key="nombre_usuario", value=user.Nombre or "", httponly=True)
             response.set_cookie(key="apellidoP_usuario", value=user.Paterno or "", httponly=True)
             response.set_cookie(key="apellidoM_usuario", value=user.Materno or "", httponly=True)

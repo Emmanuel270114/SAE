@@ -12,11 +12,20 @@ router = APIRouter()
 @router.get("/estatus", response_class=HTMLResponse)
 def estatus_view(
     request: Request,
-    UUsuario: str = "paco",
     HHost: str = "Test",
     PPeriodo: str = "2025-2026/1",
     db: Session = Depends(get_db)
 ):
+    
+    
+    UUsuario = str(request.cookies.get("nombre_usuario", ""))
+    Rol = str(request.cookies.get("nombre_rol",""))
+
+
+
+
+
+
     """
     Vista para consultar los domicilios mediante un Stored Procedure.
     """
@@ -48,6 +57,7 @@ def estatus_view(
         "catalogos/estatus.html",
         {
             "request": request,
-            "estatus": data
+            "estatus": data,
+            "rol": Rol
         }
     )

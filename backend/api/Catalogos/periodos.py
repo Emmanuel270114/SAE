@@ -12,14 +12,16 @@ router = APIRouter()
 @router.get("/periodos", response_class=HTMLResponse)
 def domicilios_view(
     request: Request,
-    UUsuario: str = "paco",
     HHost: str = "Test",
     PPeriodo: str = "2025-2026/1",
     db: Session = Depends(get_db)
 ):
-    """
-    Vista para consultar los domicilios mediante un Stored Procedure.
-    """
+    
+    UUsuario = str(request.cookies.get("nombre_usuario", ""))
+    Rol = str(request.cookies.get("nombre_rol",""))
+
+
+
 
     try:
         # Ejecutar el Stored Procedure con parámetros nombrados
@@ -48,6 +50,7 @@ def domicilios_view(
         "catalogos/periodos.html",
         {
             "request": request,
-            "periodos": data
+            "periodos": data,
+            "rol": Rol
         }
     )

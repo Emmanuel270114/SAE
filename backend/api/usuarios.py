@@ -35,6 +35,7 @@ async def usuarios_view(
     # Datos del usuario logueado
     id_unidad_academica = int(request.cookies.get("id_unidad_academica", 1))
     id_rol = int(request.cookies.get("id_rol", 2))
+    Rol = str(request.cookies.get("nombre_rol",""))
     nombre_usuario = request.cookies.get("nombre_usuario", "")
     apellidoP_usuario = request.cookies.get("apellidoP_usuario", "")
     apellidoM_usuario = request.cookies.get("apellidoM_usuario", "")
@@ -79,7 +80,8 @@ async def usuarios_view(
             "unidades_academicas": unidades_academicas,
             "niveles": niveles,
             "es_super_admin": es_super_admin,
-            "tiene_permisos_admin": tiene_permisos_admin
+            "tiene_permisos_admin": tiene_permisos_admin,
+            "rol": Rol
         },
     )
 

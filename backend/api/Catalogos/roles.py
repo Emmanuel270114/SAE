@@ -12,12 +12,13 @@ router = APIRouter()
 @router.get("/roles", response_class=HTMLResponse)
 def roles_view(
     request: Request,
-    UUsuario: str = "paco",
     HHost: str = "Test",
     PPeriodo: str = "2025-2026/1",
     db: Session = Depends(get_db)
 ):
-
+    UUsuario = request.cookies.get("nombre_usuario", "")
+    Rol = request.cookies.get("nombre_rol","")
+    
     try:
         # Ejecutar el Stored Procedure con parámetros nombrados
         query = text("""
@@ -45,6 +46,7 @@ def roles_view(
         "catalogos/roles.html",
         {
             "request": request,
-            "roles": data
+            "roles": data,
+            "rol": Rol
         }
     )

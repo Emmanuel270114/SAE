@@ -15,6 +15,8 @@ def modulos_view(
     db: Session = Depends(get_db)
 ):
 
+    Rol = str(request.cookies.get("nombre_rol",""))
+
     try:
         # Ejecutar el Stored Procedure con parámetros nombrados
         query = text("""
@@ -35,6 +37,7 @@ def modulos_view(
         "catalogos/modulos.html",
         {
             "request": request,
-            "modulos": data
+            "modulos": data,
+            "rol": Rol
         }
     )
