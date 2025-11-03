@@ -1,6 +1,8 @@
 #Este archivo contiene las funciones CRUD para el modelo Usuario.
 
+from backend.crud import CatUnidadAcademica
 from backend.database.models.Usuario import Usuario
+from backend.database.models.CatUnidadAcademica import CatUnidadAcademica
 from backend.schemas.Usuario import UsuarioCreate, UsuarioResponse
 
 from sqlalchemy import select

@@ -91,14 +91,16 @@ def reset_password(db: Session, username: str, email: str, request = None) -> bo
         db.rollback()
         return False
 
-def change_password(db: Session, user_id: int, current_password: str, new_password: str, request = None) -> bool:
+def change_password(db: Session, user_id: int, request, new_password: str) -> bool:
+    """
+    Cambiar la contraseña del usuario SIN requerir la contraseña actual.
+    Solo necesita el ID del usuario y la nueva contraseña.
+    """
     user = db.query(Usuario).filter(Usuario.Id_Usuario == user_id).first()
     if not user:
         return False
-    stored = user.Password
-    import bcrypt
-    if not bcrypt.checkpw(current_password.encode('utf-8'), stored.encode('utf-8')):
-        return False
+    
+    # Actualizar directamente sin validar contraseña actual
     user.Password = hash_password(new_password)
     from datetime import datetime, timezone
     user.Fecha_Modificacion = datetime.now(timezone.utc)
@@ -111,7 +113,7 @@ def change_password(db: Session, user_id: int, current_password: str, new_passwo
         
         id_modulo = 1  # Módulo de seguridad
         id_periodo = 7  # Periodo por defecto
-        accion = f"Usuario cambió de contraseña temporal a personal"
+        accion = f"Usuario cambió su contraseña"
 
         # Obtener el hostname del cliente (reverse DNS). Si falla, usar IP.
         host = get_request_host(request)
@@ -364,14 +366,25 @@ def has_temporary_password(db: Session, user_id: int) -> bool:
         if not ultimo_reset:
             return False
         
-        # Verificar si después del reset hubo un cambio a contraseña personal
+        # Verificar si después del reset hubo un cambio de contraseña
+        # Buscamos cualquiera de estos mensajes:
+        # - "Usuario cambió de contraseña temporal a personal" (mensaje antiguo)
+        # - "Usuario cambió su contraseña" (mensaje nuevo)
+        # - "Cambio de contraseña exitoso" (mensaje del endpoint)
+        from sqlalchemy import or_
         cambio_personal = db.query(Bitacora).filter(
             Bitacora.Id_Usuario == user_id,
-            Bitacora.Acciones.contains('Usuario cambió de contraseña temporal a personal'),
-            Bitacora.Fecha > ultimo_reset.Fecha
+            Bitacora.Fecha > ultimo_reset.Fecha,
+            or_(
+                Bitacora.Acciones.contains('Usuario cambió de contraseña temporal a personal'),
+                Bitacora.Acciones.contains('Usuario cambió su contraseña'),
+                Bitacora.Acciones.contains('Cambio de contraseña exitoso')
+            )
         ).first()
         
         print(f"DEBUG: Usuario {user_id} - Cambio personal después de reset: {cambio_personal is not None}")
+        if cambio_personal:
+            print(f"DEBUG: Usuario {user_id} - Acción encontrada: {cambio_personal.Acciones}")
         
         # Si no hay cambio personal después del reset, aún tiene contraseña temporal
         result = cambio_personal is None

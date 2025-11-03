@@ -204,6 +204,7 @@ async def captura_matricula_sp_view(request: Request, db: Session = Depends(get_
         "periodos": periodos,
         "unidades_academicas": unidades_academicas,
         "periodo_default_id": periodo_default_id,
+        "periodo_default_literal": periodo_default_literal,
         "unidad_actual": unidad_actual,
         "programas": programas_formatted,
         "modalidades": modalidades_formatted,
@@ -300,6 +301,7 @@ async def debug_sp(request: Request, db: Session = Depends(get_db)):
         apellidoM_usuario = request.cookies.get("apellidoM_usuario", "")
         nombre_completo = " ".join(filter(None, [nombre_usuario, apellidoP_usuario, apellidoM_usuario]))
         periodo = '2025-2026/1'
+    
 
         print(f"ID Unidad Académica (cookie): {id_unidad_academica}")
         print(f"ID Nivel (cookie): {id_nivel}")
@@ -479,6 +481,7 @@ async def guardar_captura_completa(request: Request, db: Session = Depends(get_d
         semestre = data.get('semestre')
         modalidad = data.get('modalidad')
         turno = data.get('turno')
+        total_grupos = data.get('total_grupos', 0)
         datos_matricula = data.get('datos_matricula', {})
         
         # Convertir período de ID a formato literal para guardar en Temp_Matricula
@@ -488,6 +491,7 @@ async def guardar_captura_completa(request: Request, db: Session = Depends(get_d
                 periodo_obj = db.query(Periodo).filter(Periodo.Id_Periodo == int(periodo_input)).first()
                 if periodo_obj:
                     periodo = periodo_obj.Periodo  # '2025-2026/1'
+                
                     print(f"🔄 Período convertido de ID {periodo_input} → '{periodo}' para Temp_Matricula")
                 else:
                     print(f"⚠️ ID de período {periodo_input} no encontrado, usando default")
@@ -607,13 +611,15 @@ async def guardar_captura_completa(request: Request, db: Session = Depends(get_d
                 'Grupo_Edad': grupo_edad_nombre,
                 'Tipo_Ingreso': tipo_ingreso_nombre,
                 'Sexo': sexo_completo,
-                'Matricula': int(dato.get('matricula', 0))
+                'Matricula': int(dato.get('matricula', 0)),
+                'Salones': int(dato.get('salones', total_grupos))
             }
             
             # Filtrar solo campos válidos
             filtered = {k: v for k, v in registro.items() if k in valid_fields}
             
-            if filtered and filtered.get('Matricula', 0) > 0:
+            # Cambiar condición para incluir valores de 0 (>= 0 en lugar de > 0)
+            if filtered and filtered.get('Matricula', 0) >= 0:
                 # Usar merge() para manejar automáticamente INSERT/UPDATE
                 temp_matricula = Temp_Matricula(**filtered)
                 merged_obj = db.merge(temp_matricula)
@@ -704,9 +710,10 @@ async def actualizar_matricula(request: Request, db: Session = Depends(get_db)):
         usuario_sp = nombre_completo or 'sistema'
         host_sp = get_request_host(request)
         
-        # Obtener período desde el request o usar el período por defecto
+        # Obtener período y total_grupos desde el request o usar valores por defecto
         data = await request.json()
         periodo_input = data.get('periodo')
+        total_grupos = data.get('total_grupos', 0)
         
         # SIEMPRE convertir a formato literal para el SP
         if periodo_input:
@@ -716,6 +723,7 @@ async def actualizar_matricula(request: Request, db: Session = Depends(get_db)):
                 periodo_obj = db.query(Periodo).filter(Periodo.Id_Periodo == int(periodo_input)).first()
                 if periodo_obj:
                     periodo = periodo_obj.Periodo  # '2025-2026/1'
+                
                     print(f"🔄 Convertido ID {periodo_input} → '{periodo}'")
                 else:
                     print(f"⚠️ ID de período {periodo_input} no encontrado, usando default")
@@ -804,6 +812,7 @@ async def actualizar_matricula(request: Request, db: Session = Depends(get_db)):
         print(f"=================================")
         
         print(f"\n=== PARÁMETROS DEL SP ===")
+        print(f"@SSalones = '{total_grupos}' (tipo: {type(total_grupos).__name__})")
         print(f"@UUsuario = '{usuario_sp}' (tipo: {type(usuario_sp).__name__})")
         print(f"@PPeriodo = '{periodo}' (tipo: {type(periodo).__name__})")
         print(f"@HHost = '{host_sp}' (tipo: {type(host_sp).__name__})")
@@ -814,11 +823,13 @@ async def actualizar_matricula(request: Request, db: Session = Depends(get_db)):
         try:
             cursor = db.execute(text("""
                 EXEC [dbo].[SP_Actualiza_Matricula_Por_Unidad_Academica] 
+                    @SSalones = :salones,
                     @UUsuario = :usuario,
                     @PPeriodo = :periodo,
                     @HHost = :host,
                     @NNivel = :nivel
             """), {
+                'salones': total_grupos,
                 'usuario': usuario_sp,
                 'periodo': periodo,
                 'host': host_sp,
