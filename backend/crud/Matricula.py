@@ -105,18 +105,41 @@ def execute_sp_consulta_matricula(
     db: Session,
     unidad_sigla: str,
     periodo: str,
-    nivel: str
+    nivel: str,
+    usuario: str = 'sistema',
+    host: str = 'localhost'
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
     """
     Ejecutar el SP SP_Consulta_Matricula_Unidad_Academica y devolver las filas normalizadas.
+    
+    Args:
+        db: Sesión de base de datos
+        unidad_sigla: Sigla de la unidad académica (ej: 'ESE', 'ESCOM')
+        periodo: Periodo académico (ej: '2025-2026/1')
+        nivel: Nivel educativo (ej: 'Posgrado', 'Licenciatura')
+        usuario: Nombre del usuario que ejecuta la consulta
+        host: Host desde donde se realiza la petición
     
     Returns:
         Tuple[List[Dict], List[str]]: (filas como dicts, nombres de columnas)
     """
     try:
-        # Ejecutar el SP con parámetros seguros
-        sql = text("EXEC SP_Consulta_Matricula_Unidad_Academica @UUnidad_Academica = :unidad, @PPeriodo = :periodo, @nivel = :nivel")
-        result = db.execute(sql, {'unidad': unidad_sigla, 'periodo': periodo, 'nivel': nivel})
+        # Ejecutar el SP con parámetros seguros (incluyendo @UUsuario y @HHost)
+        sql = text("""
+            EXEC SP_Consulta_Matricula_Unidad_Academica 
+                @UUnidad_Academica = :unidad, 
+                @PPeriodo = :periodo, 
+                @NNivel = :nivel, 
+                @UUsuario = :usuario, 
+                @HHost = :host
+        """)
+        result = db.execute(sql, {
+            'unidad': unidad_sigla, 
+            'periodo': periodo, 
+            'nivel': nivel,
+            'usuario': usuario,
+            'host': host
+        })
         rows = result.fetchall()
 
         # Obtener nombres de columnas si el driver los provee
@@ -144,12 +167,6 @@ def execute_sp_consulta_matricula(
                 rows_list.append(row_dict)
             except Exception:
                 continue
-
-        # Filtrar filas con estatus activo y manejar valores NULL
-        rows_list = [
-            {key: ("" if value is None else value) for key, value in row.items() if row.get("estatus") == "1"}
-            for row in rows_list
-        ]
 
         return rows_list, columns
 

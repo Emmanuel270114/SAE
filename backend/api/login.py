@@ -37,26 +37,25 @@ async def login(
             user = read_user_by_email(db, usuario_email)
             if user is None:
                 user = read_user_by_username(db, usuario_email)
-            
+
             id_unidad = user.Id_Unidad_Academica if user else 1
             id_rol = user.Id_Rol if user else 2
             id_nivel = user.Id_Nivel if user else 1
             id_usuario = user.Id_Usuario if user else None
             
-            # Obtener nombres del rol y nivel
+            # Obtener nombres del rol, nivel y sigla de la unidad académica
             rol = db.query(CatRoles).filter(CatRoles.Id_Rol == id_rol).first()
             nivel = db.query(CatNivel).filter(CatNivel.Id_Nivel == id_nivel).first()
             unidad = db.query(CatUnidadAcademica).filter(CatUnidadAcademica.Id_Unidad_Academica == id_unidad).first()
             
             nombre_rol = rol.Rol if rol else "Usuario"
             nombre_nivel = nivel.Nivel if nivel else "No definido"
-            sigla_unidad = unidad.Sigla if unidad else ''
+            sigla_unidad = unidad.Sigla if unidad else ""
             
             print(f"DEBUG LOGIN: Usuario {user.Usuario}")
             print(f"DEBUG LOGIN: ID Rol: {id_rol}, Nombre Rol: {nombre_rol}")
             print(f"DEBUG LOGIN: ID Nivel: {id_nivel}, Nombre Nivel: {nombre_nivel}")
             print(f"DEBUG LOGIN: ID Unidad Académica: {id_unidad}")
-            print(f"DEBUG LOGIN: Sigla: {sigla_unidad}")
             
             # Verificar si tiene contraseña temporal usando bitácora
             from backend.services.usuario_service import has_temporary_password
@@ -89,6 +88,7 @@ async def login(
             mensaje = "Usuario o contraseña incorrectos."
     except Exception as e:
         mensaje = f"Error al validar usuario: {str(e)}"
+
 
     return templates.TemplateResponse(
         "login.html",

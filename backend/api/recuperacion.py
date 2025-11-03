@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
+from typing import Optional
 from backend.database.connection import get_db
 from backend.core.templates import templates
 from backend.services.usuario_service import get_username_by_email, reset_password, change_password
@@ -29,7 +30,12 @@ async def recuperar_password_view(request: Request):
     return templates.TemplateResponse("recuperar_password.html", {"request": request})
 
 @router.post("/password", response_class=JSONResponse)
-async def recuperar_password(username: str = Form(...), email: str = Form(...), request: Request = None, db: Session = Depends(get_db)):
+async def recuperar_password(
+    username: str = Form(...), 
+    email: str = Form(...), 
+    request: Request = None, 
+    db: Session = Depends(get_db)
+):
     # Pasar el objeto request directamente a la función
     ok = reset_password(db, username, email, request)
     if ok:
@@ -46,7 +52,7 @@ async def recuperar_password(username: str = Form(...), email: str = Form(...), 
                     host = client_ip
             else:
                 host = "sistema"
-            registrar_bitacora(db, id_usuario=0, id_modulo=1, id_periodo=9, accion=f"Reset password solicitado para usuario {username}", host=host)
+            registrar_bitacora(db, id_usuario=0, id_modulo=1, id_periodo=7, accion=f"Reset password solicitado para usuario {username}", host=host)
         except Exception:
             pass
         return {"mensaje": "Si los datos son correctos, se envió una nueva contraseña al correo registrado."}
@@ -58,28 +64,35 @@ async def cambiar_password_view(request: Request):
 
 @router.post("/cambiar", response_class=JSONResponse)
 async def cambiar_password(
-    current_password: str = Form(...),
     new_password: str = Form(...),
     new_password2: str = Form(...),
     request: Request = None,
     db: Session = Depends(get_db)
 ):
+    # Validar que las dos contraseñas nuevas coincidan
     if new_password != new_password2:
         return JSONResponse(status_code=400, content={"mensaje": "Las contraseñas nuevas no coinciden."})
-    # Usuario logueado
+    
+    # Validar que la contraseña tenga al menos una longitud mínima
+    if len(new_password) < 6:
+        return JSONResponse(status_code=400, content={"mensaje": "La contraseña debe tener al menos 6 caracteres."})
+    
+    # Obtener el usuario logueado desde las cookies
     id_usuario = request.cookies.get("id_usuario") if request else None
     try:
         id_usuario_int = int(id_usuario) if id_usuario else 0
     except (TypeError, ValueError):
         id_usuario_int = 0
+    
     if id_usuario_int <= 0:
         return JSONResponse(status_code=401, content={"mensaje": "Sesión no válida."})
     
-    # Pasar el objeto request directamente a la función
-    ok = change_password(db, id_usuario_int, current_password, new_password, request)
+    # Cambiar la contraseña (ahora sin requerir la contraseña actual)
+    ok = change_password(db, id_usuario_int, request, new_password)
+    
     if ok:
         try:
-            # Capturar hostname de la misma forma
+            # Capturar hostname para bitácora adicional
             import socket
             if request:
                 xff = request.headers.get("x-forwarded-for") or ""
@@ -90,8 +103,9 @@ async def cambiar_password(
                     host = client_ip
             else:
                 host = "sistema"
-            registrar_bitacora(db, id_usuario=id_usuario_int, id_modulo=1, id_periodo=9, accion="Cambio de contraseña exitoso", host=host)
+            registrar_bitacora(db, id_usuario=id_usuario_int, id_modulo=1, id_periodo=7, accion="Cambio de contraseña exitoso", host=host)
         except Exception:
             pass
-        return {"mensaje": "Contraseña actualizada."}
-    return JSONResponse(status_code=400, content={"mensaje": "Credenciales inválidas."})
+        return {"mensaje": "Contraseña actualizada exitosamente."}
+    
+    return JSONResponse(status_code=400, content={"mensaje": "No se pudo actualizar la contraseña."})

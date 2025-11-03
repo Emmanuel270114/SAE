@@ -107,7 +107,7 @@ async def registrar_usuario_view(
         if id_usuario_log > 0:
             try:
                 id_modulo = 1  # Puedes ajustar el ID del módulo según tu catálogo
-                id_periodo = 9  # Por ahora fijo como solicitaste
+                id_periodo = 7  # Por ahora fijo como solicitaste
                 accion = f"Registró nuevo usuario con ID {usuario_registrado.Id_Usuario}"
 
                 # Obtener el hostname del cliente (reverse DNS). Si falla, usar IP.
@@ -171,7 +171,7 @@ async def editar_usuario_ajax(
             id_usuario_log = 0
         if id_usuario_log > 0:
             id_modulo = 1  # Puedes ajustar el ID del módulo según tu catálogo
-            id_periodo = 9  # Por ahora fijo como solicitaste
+            id_periodo = 7  # Por ahora fijo como solicitaste
             accion = f"Modificó usuario con ID {id_usuario}"
 
             # Obtener el hostname del cliente (reverse DNS). Si falla, usar IP.
@@ -215,7 +215,7 @@ async def eliminar_usuario(
             id_usuario_log = 0
         if id_usuario_log > 0:
             id_modulo = 1
-            id_periodo = 9
+            id_periodo = 7
             accion = f"Eliminó (baja lógica) usuario con ID {id_usuario}"
             host = get_request_host(request)
             registrar_bitacora(db=db, id_usuario=id_usuario_log, id_modulo=id_modulo, id_periodo=id_periodo, accion=accion, host=host)

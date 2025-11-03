@@ -6,9 +6,16 @@
     <link rel="stylesheet" href="/static/css/components/header.css">
     <link rel="stylesheet" href="/static/css/components/tables.css">
     <link rel="stylesheet" href="/static/css/components/matricula_consulta.css">
+    <script src="/static/js/matricula_inputs.js"></script>
     <style>
         /* Ocultar el submenu de categorias que viene de base.html en esta vista */
         .submenu-categorias-box { display: none !important; }
+        
+        /* 3. Asegúrate de que el div.tabla-header no añada un espacio innecesario */
+        .tabla-matricula-container .tabla-header {
+             margin: 0;
+             padding: 0;
+        }
     </style>
 {% endblock %}
 
@@ -17,7 +24,7 @@
     <div class="header-usuarios">
         <div class="bienvenido">Bienvenido: <strong>{{ nombre_usuario }}</strong>
             {% if periodo_default_id %}
-                &nbsp;|&nbsp; Periodo: <strong> 2025-2026/1 </strong>
+                &nbsp;|&nbsp; Periodo: <strong>{{ periodo_default_literal }}</strong>
             {% endif %}
             {% if unidad_actual %}
                 &nbsp;|&nbsp; Unidad Académica: <strong>{{ unidad_actual.Nombre }}</strong>
@@ -79,7 +86,26 @@
             Unidad Académica: <strong>{{ unidad_actual.Nombre if unidad_actual else 'No definida' }}</strong>
         </div>
     </div>
-
+    <!-- Leyenda del Semáforo -->
+    <div class="semaforo-leyenda">
+        <div class="leyenda-titulo">
+            <span style="font-weight: 600; color: #6e0343;">📊 Estado de Semestres:</span>
+        </div>
+        <div class="leyenda-items">
+            <div class="leyenda-item">
+                <div class="leyenda-color" style="background-color: #ff4444;"></div>
+                <span class="leyenda-texto">Sin Datos</span>
+            </div>
+            <div class="leyenda-item">
+                <div class="leyenda-color" style="background-color: #ffbb33;"></div>
+                    <span class="leyenda-texto">Datos Parciales</span>
+                </div>
+            <div class="leyenda-item">
+                <div class="leyenda-color" style="background-color: #00C851;"></div>
+                <span class="leyenda-texto">Datos Completos</span>
+            </div>
+        </div>
+    </div>
     <!-- Sección de Captura con tabla completa -->
     <div class="captura-container">
         <!-- Pestañas de Semestres -->
@@ -87,12 +113,19 @@
             <!-- Las pestañas se generarán dinámicamente con JavaScript -->
         </div>
 
-        <!-- Navegación de Turnos -->
+        <!-- Navegación de Turnos con Semestre integrado -->
         <div class="turno-navigation">
             <div class="turno-display">
                 <span class="turno-label">Turno:</span>
                 <span class="turno-nombre" id="turno-nombre">Matutino</span>
             </div>
+            
+            <div class="semestre-display">
+                <h2 id="semestre-titulo" style="margin:0; font-size:28px; font-weight:700; color:#ffffff;">
+                    Semestre <span id="semestre-num">1</span>
+                </h2>
+            </div>
+            
             <div class="turno-buttons">
                 <button type="button" class="btn-turno" id="btn-turno-anterior" onclick="cambiarTurno(-1)">
                     ← Anterior
@@ -102,16 +135,57 @@
                 </button>
             </div>
         </div>
+        
+        <script>
+            // Actualiza el título cuando cambie el input oculto de semestre
+            (function(){
+                function actualizarTituloSemestre() {
+                    const input = document.getElementById('semestre');
+                    const span = document.getElementById('semestre-num');
+                    if (!span) return;
+                    span.textContent = input && input.value ? input.value : '1';
+                }
+
+                document.addEventListener('DOMContentLoaded', function() {
+                    actualizarTituloSemestre();
+                    const input = document.getElementById('semestre');
+                    if (input) {
+                        input.addEventListener('change', actualizarTituloSemestre);
+                        input.addEventListener('input', actualizarTituloSemestre);
+                        // Poll como fallback por si se cambia .value sin disparar eventos
+                        let last = input.value;
+                        const poll = setInterval(() => {
+                            if (input.value !== last) {
+                                last = input.value;
+                                actualizarTituloSemestre();
+                            }
+                        }, 300);
+                        window.addEventListener('beforeunload', () => clearInterval(poll));
+                    }
+                });
+            })();
+        </script>
 
         <div class="tabla-matricula-container">
-            <div class="tabla-header">
-                <h3> <strong>Captura de Matrícula Escolar</strong></h3>
+            <div class="tabla-header"></div>
+            
+            <!-- Input Total Grupos -->
+            <div class="total-grupos-container" style="display: flex; justify-content: flex-end; margin-bottom: 10px; padding: 0 15px;">
+                <div style="display: flex; align-items: center; gap: 10px; background: #f8f9fa; padding: 8px 15px; border-radius: 6px; border: 1px solid #dee2e6;">
+                    <label for="input-total-grupos" style="font-weight: 600; color: #495057; margin: 0;">Total Grupos:</label>
+                    <input type="number" 
+                           id="input-total-grupos" 
+                           class="input-total-grupos"
+                           min="0" 
+                           style="width: 80px; padding: 5px 8px; border: 1px solid #ced4da; border-radius: 4px; text-align: center; font-size: 14px;"
+                           placeholder="0">
+                </div>
             </div>
             
             <table class="tabla-matricula-completa" style="box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden;">
                 <thead>
                     <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                        <th class="col-edad" style="padding: 15px; text-align: center; font-weight: 600; font-size: 14px; width: 15%;">Edad</th>
+                        <th class="col-edad" style="padding: 15px; text-align: center; font-weight: 600; font-size: 14px; width: 28%;">Edad</th>
                         <th class="col-tipo-ingreso" style="padding: 15px; text-align: center; font-weight: 600; font-size: 14px; width: 28%;">Nuevo Ingreso</th>
                         <th class="col-tipo-ingreso" style="padding: 15px; text-align: center; font-weight: 600; font-size: 14px; width: 28%;">Reingreso</th>
                         <th class="col-tipo-ingreso" style="padding: 15px; text-align: center; font-weight: 600; font-size: 14px; width: 28%;">Repetidores</th>
@@ -122,24 +196,46 @@
                 </tbody>
             </table>
         </div>
+        
+        <!-- Botones justo después de la tabla -->
+        <div class="actions-section actions-after-table">
+            <button type="button" class="btn-primary" onclick="guardarMatricula()">
+                💾 Guardar Progreso
+            </button>
+            <button type="button" class="btn-success" onclick="actualizarMatricula()">
+                🔄 Actualizar Matrícula
+            </button>
+            <button type="button" class="btn-secondary" onclick="limpiarFormulario()">
+                🧹 Limpiar Formulario
+            </button>
+            <button type="button" class="btn-success" onclick="validarCapturaSemestre()">
+                ✅ Validar y Finalizar Captura
+            </button>
+        </div>
     </div>
 
-    <div class="actions-section">
-        <button type="button" class="btn-primary" onclick="guardarMatricula()">
-            💾 Guardar Matrícula
-        </button>
-        <button type="button" class="btn-secondary" onclick="limpiarFormulario()">
-            🧹 Limpiar Formulario
-        </button>
-        <button type="button" class="btn-secondary" onclick="window.location.href='/mod_principal'">
-            ↩️ Volver al Menú
-        </button>
-    </div>
     {% endif %}
 </div>
 
+{% endblock %}
+
 {% block scripts %}
 <script>
+    // Variables globales con datos del backend
+    const gruposEdad = {{ grupos_edad | tojson }};
+    const tiposIngreso = {{ tipos_ingreso | tojson }};
+    const semestresData = {{ semestres | tojson }};
+    const semestresMapJson = {{ semestres_map_json | safe }};
+    const periodoLiteral = "{{ periodo_default_literal }}"; // Ej: "2025-2026/1"
+    
+    // Crear mapa de semestres (ID -> Nombre)
+    const semestresMap = semestresMapJson || {};
+    
+    console.log('📊 Grupos de edad disponibles:', gruposEdad);
+    console.log('📊 Tipos de ingreso disponibles:', tiposIngreso);
+    console.log('📊 Semestres map:', semestresMap);
+    console.log('📅 Periodo literal:', periodoLiteral);
+
     // Función para cargar datos existentes cuando cambien los filtros usando SP
     async function cargarDatosExistentes() {
         const periodo = document.getElementById('periodo').value;
@@ -202,215 +298,621 @@
         }
     }
 
+    // Función para procesar los estados de semáforo que vienen del SP
+    function procesarEstadosSemaforoDelSP(rows) {
+        console.log('🚦 === PROCESANDO ESTADOS DE SEMÁFORO DEL SP ===');
+        
+        // NO limpiar estados anteriores - queremos preservar estados validados
+        // estadosSemaforoPorSemestre = {}; // ❌ ELIMINADO
+        
+        if (!rows || rows.length === 0) {
+            console.log('⚠️ No hay rows del SP para procesar estados');
+            return;
+        }
+        
+        // Cargar estados validados desde localStorage
+        const estadosValidados = cargarEstadosValidadosDeLocalStorage();
+        console.log('💾 Estados validados desde localStorage:', estadosValidados);
+        
+        // Mapeo de semestres a números
+        const semestreANumero = {
+            'Primero': 1, 'Primer': 1, '1': 1, 'I': 1,
+            'Segundo': 2, '2': 2, 'II': 2,
+            'Tercero': 3, 'Tercer': 3, '3': 3, 'III': 3,
+            'Cuarto': 4, '4': 4, 'IV': 4,
+            'Quinto': 5, '5': 5, 'V': 5,
+            'Sexto': 6, '6': 6, 'VI': 6,
+            'Séptimo': 7, 'Septimo': 7, '7': 7, 'VII': 7,
+            'Octavo': 8, '8': 8, 'VIII': 8,
+            'Noveno': 9, '9': 9, 'IX': 9,
+            'Décimo': 10, 'Decimo': 10, '10': 10, 'X': 10
+        };
+        
+        // Extraer semestres únicos disponibles del SP
+        const semestresUnicos = new Set();
+        
+        // Procesar cada fila del SP
+        rows.forEach(row => {
+            const semestre = row.Semestre;
+            const idSemaforo = row.Id_Semaforo;
+            
+            if (semestre && idSemaforo) {
+                const semestreNum = semestreANumero[semestre] || parseInt(semestre) || null;
+                
+                if (semestreNum) {
+                    // Agregar a la lista de semestres únicos
+                    semestresUnicos.add(semestreNum);
+                    
+                    // NUEVA LÓGICA: Preservar estados validados (estado 3)
+                    if (estadosValidados[semestreNum] === 3) {
+                        // Este semestre ya fue validado, NO sobrescribir
+                        console.log(`🔒 Semestre ${semestreNum} YA VALIDADO - Preservando estado 3`);
+                        estadosSemaforoPorSemestre[semestreNum] = 3;
+                    } else {
+                        // Semestre no validado, usar estado del SP
+                        if (!estadosSemaforoPorSemestre[semestreNum] || idSemaforo > estadosSemaforoPorSemestre[semestreNum]) {
+                            estadosSemaforoPorSemestre[semestreNum] = idSemaforo;
+                            console.log(`🚦 Semestre "${semestre}" (${semestreNum}) -> Estado ${idSemaforo} del SP`);
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Actualizar variable global con semestres disponibles (ordenados)
+        semestresDisponiblesSP = Array.from(semestresUnicos).sort((a, b) => a - b);
+        console.log('📚 Semestres disponibles del SP:', semestresDisponiblesSP);
+        
+        console.log('🚦 Estados finales por semestre:', estadosSemaforoPorSemestre);
+    }
+
+    // Función para procesar TODAS las filas del SP y organizar los datos por semestre
+    function procesarYGuardarDatosPorSemestre(rows) {
+        console.log('📦 Procesando y guardando datos por semestre...');
+        
+        if (!rows || rows.length === 0) {
+            console.log('⚠️ No hay filas para procesar');
+            return;
+        }
+
+        // Objeto temporal para organizar datos por semestre
+        const datosPorSemestre = {};
+
+        rows.forEach((row, index) => {
+            // Extraer información de la fila
+            const semestre = row.Semestre;
+            const tipoIngreso = row.Tipo_de_Ingreso;
+            const grupoEdad = row.Grupo_Edad;
+            const sexo = row.Sexo;
+            const matricula = row.Matricula || 0;
+
+            if (!semestre || !tipoIngreso || !grupoEdad || !sexo) {
+                console.log(`⚠️ Fila ${index} incompleta, saltando...`);
+                return;
+            }
+
+            // Convertir semestre a ID numérico
+            const semestreANumero = {
+                'Primero': 1, '1': 1, 'I': 1,
+                'Segundo': 2, '2': 2, 'II': 2,
+                'Tercero': 3, '3': 3, 'III': 3,
+                'Cuarto': 4, '4': 4, 'IV': 4,
+                'Quinto': 5, '5': 5, 'V': 5,
+                'Sexto': 6, '6': 6, 'VI': 6,
+                'Septimo': 7, 'Séptimo': 7, '7': 7, 'VII': 7,
+                'Octavo': 8, '8': 8, 'VIII': 8,
+                'Noveno': 9, '9': 9, 'IX': 9,
+                'Décimo': 10, 'Decimo': 10, '10': 10, 'X': 10
+            };
+            
+            const semestreId = semestreANumero[semestre] || parseInt(semestre) || null;
+            if (!semestreId) {
+                console.log(`⚠️ No se pudo convertir semestre "${semestre}" a ID numérico`);
+                return;
+            }
+
+            // Convertir tipo de ingreso a ID
+            const tipoNorm = String(tipoIngreso).toLowerCase();
+            let tipoId = '1';
+            if (tipoNorm.includes('nuevo')) {
+                tipoId = '1';
+            } else if (tipoNorm.includes('reingreso') || tipoNorm.includes('re-ingreso')) {
+                tipoId = '2';
+            } else if (tipoNorm.includes('repet') || tipoNorm.includes('repetidor')) {
+                tipoId = '3';
+            }
+
+            // Convertir sexo
+            const sexoStr = String(sexo).toLowerCase();
+            let sexoFinal = 'M';
+            if (sexoStr.includes('mujer') || sexoStr.startsWith('f')) {
+                sexoFinal = 'F';
+            }
+
+            // Buscar el ID del grupo de edad en base al valor
+            // grupoEdad del SP es el VALOR ("18"), necesitamos el ID (4)
+            const grupoEdadObj = gruposEdad.find(g => String(g.Grupo_Edad) === String(grupoEdad));
+            const grupoEdadId = grupoEdadObj ? grupoEdadObj.Id_Grupo_Edad : grupoEdad;
+            
+            if (!grupoEdadObj) {
+                console.warn(`⚠️ No se encontró ID para grupo de edad "${grupoEdad}", usando valor directo`);
+            }
+
+            // Inicializar objeto del semestre si no existe
+            if (!datosPorSemestre[semestreId]) {
+                datosPorSemestre[semestreId] = {};
+            }
+
+            // Crear clave única: tipoId_grupoEdadID_sexo (USAR ID, NO VALOR)
+            const key = `${tipoId}_${grupoEdadId}_${sexoFinal}`;
+            
+            console.log(`🔑 Fila ${index}: Semestre ${semestreId}, Grupo "${grupoEdad}"→ID:${grupoEdadId}, Clave: ${key}`);
+            
+            // Guardar el valor
+            const valor = parseInt(matricula) || 0;
+            if (valor > 0) {
+                datosPorSemestre[semestreId][key] = valor;
+            }
+        });
+
+        // Guardar en la variable global datosMatriculaPorSemestre
+        for (let semestreId in datosPorSemestre) {
+            const datos = datosPorSemestre[semestreId];
+            const cantidadDatos = Object.keys(datos).length;
+            
+            // Solo sobrescribir si no hay datos guardados previamente o si vienen datos nuevos del SP
+            if (!datosMatriculaPorSemestre[semestreId] || Object.keys(datosMatriculaPorSemestre[semestreId]).length === 0) {
+                datosMatriculaPorSemestre[semestreId] = datos;
+                console.log(`💾 Guardados ${cantidadDatos} valores del SP para semestre ${semestreId}`);
+            } else {
+                console.log(`📌 Semestre ${semestreId} ya tiene ${Object.keys(datosMatriculaPorSemestre[semestreId]).length} valores guardados, conservando...`);
+            }
+        }
+
+        console.log('✅ Procesamiento y guardado por semestre completado');
+    }
+
     // Renderiza la tabla de captura a partir de rows devueltas por el SP con nueva estructura
     // rows: array de objetos; datosMap: mapa opcional para poblar valores
-    function renderMatriculaFromSP(rows, datosMap) {
-        console.log('=== renderMatriculaFromSP ===');
-        console.log('Número de rows:', rows.length);
-        console.log('datosMap:', datosMap);
-        
-        const tbody = document.getElementById('matricula-tbody');
-        tbody.innerHTML = '';
-
-        if (!rows || rows.length === 0) {
-            console.log('⚠️ No hay rows para renderizar, generando tabla vacía');
-            generarTablaVacia();
-            return;
-        }
-
-        // Heurísticas para columnas posibles
-        const tipoCandidates = ['Id_Tipo_Ingreso','Id_TipoIngreso','Tipo_Id','Tipo_de_Ingreso','TipoIngreso','Tipo_Ingreso','Tipo'];
-        const grupoCandidates = ['Id_Grupo_Edad','Id_GrupoEdad','IdGrupoEdad','Grupo_Edad','GrupoEdad','Grupo'];
-        const sexoCandidates = ['Id_Sexo','IdSexo','Sexo','Genero','Nombre_Sexo'];
-        const matriculaCandidates = ['Matricula','Total','Cantidad','Numero','Valor'];
-        
-        console.log('Columnas disponibles en la primera fila:', Object.keys(rows[0]));
-
-        // Determinar columnas presentes
-        const first = rows[0] || {};
-        const keys = Object.keys(first);
-
-        function findKey(cands) {
-            for (let c of cands) if (keys.includes(c)) return c;
-            const low = keys.reduce((acc,k)=>{acc[k.toLowerCase()]=k;return acc;},{})
-            for (let c of cands) if (low[c.toLowerCase()]) return low[c.toLowerCase()];
-            return null;
-        }
-
-        const tipoKey = findKey(tipoCandidates);
-        const grupoKey = findKey(grupoCandidates);
-        const sexoKey = findKey(sexoCandidates);
-        const matriculaKey = findKey(matriculaCandidates);
-
-        // Construir estructura: agrupar por edad y tipo de ingreso
-        const edadMap = {};
-        
-        rows.forEach(r => {
-            const tipoVal = tipoKey ? r[tipoKey] : (r['Tipo_de_Ingreso'] || r['Tipo'] || r['TipoIngreso'] || null);
-            const grupoVal = grupoKey ? r[grupoKey] : (r['Grupo_Edad'] || r['Grupo'] || r['GrupoEdad'] || null);
-            const sexoVal = sexoKey ? r[sexoKey] : (r['Sexo'] || r['Genero'] || null);
-            const matriculaVal = matriculaKey ? r[matriculaKey] : (r['Matricula'] || r['Total'] || 0);
-
-            const tipoId = tipoVal;
-            const grupoId = grupoVal;
-            const grupoLabel = grupoVal;
-            const sexo = (sexoVal && String(sexoVal).toLowerCase().startsWith('m')) ? 'M' : 'F';
+        function renderMatriculaFromSP(rows, datosMap) {
+            console.log('=== renderMatriculaFromSP ===');
+            console.log('Número de rows:', rows.length);
+            console.log('datosMap:', datosMap);
             
-            // Normalizar tipo de ingreso
-            const tipoNorm = String(tipoVal || '').toLowerCase();
-            let tipoCategoria = 'Otros';
-            if (tipoNorm.includes('nuevo')) tipoCategoria = 'Nuevo Ingreso';
-            else if (tipoNorm.includes('reingreso') || tipoNorm.includes('re-ingreso')) tipoCategoria = 'Reingreso';
-            else if (tipoNorm.includes('repet') || tipoNorm.includes('repetidor')) tipoCategoria = 'Repetidores';
-
-            if (!edadMap[grupoId]) {
-                edadMap[grupoId] = {
-                    grupoLabel: grupoLabel,
-                    'Nuevo Ingreso': { tipoId: null, M: 0, F: 0 },
-                    'Reingreso': { tipoId: null, M: 0, F: 0 },
-                    'Repetidores': { tipoId: null, M: 0, F: 0 }
-                };
-            }
-            
-            if (!edadMap[grupoId][tipoCategoria].tipoId) {
-                edadMap[grupoId][tipoCategoria].tipoId = tipoId;
-            }
-            
-            const v = parseInt(matriculaVal) || 0;
-            if (sexo === 'M') edadMap[grupoId][tipoCategoria].M += v;
-            else edadMap[grupoId][tipoCategoria].F += v;
-        });
-
-        // Ordenar edades (asumiendo que son números o pueden ordenarse)
-        const edadesOrdenadas = Object.keys(edadMap).sort((a, b) => {
-            const numA = parseInt(a) || 0;
-            const numB = parseInt(b) || 0;
-            return numA - numB;
-        });
-
-        console.log('Edades encontradas:', edadesOrdenadas);
-        console.log('edadMap completo:', edadMap);
-
-        if (edadesOrdenadas.length === 0) {
-            console.log('⚠️ No se encontraron edades en los datos del SP');
-            generarTablaVacia();
-            return;
-        }
-
-        // Renderizar filas por edad
-        edadesOrdenadas.forEach(grupoId => {
-            const edadData = edadMap[grupoId];
-            const tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid #e0e0e0';
-            tr.style.transition = 'all 0.2s ease';
-            tr.onmouseover = () => tr.style.backgroundColor = '#f5f5f5';
-            tr.onmouseout = () => tr.style.backgroundColor = '';
-
-            // Columna de Edad
-            const tdEdad = document.createElement('td');
-            tdEdad.textContent = edadData.grupoLabel || grupoId;
-            tdEdad.style.padding = '12px';
-            tdEdad.style.textAlign = 'center';
-            tdEdad.style.fontWeight = '700';
-            tdEdad.style.fontSize = '15px';
-            tdEdad.style.color = '#424242';
-            tdEdad.style.background = '#f8f9fa';
-            tdEdad.style.verticalAlign = 'middle';
-
-            // Columnas para cada tipo de ingreso
-            ['Nuevo Ingreso', 'Reingreso', 'Repetidores'].forEach(tipoCategoria => {
-                const tdTipo = document.createElement('td');
-                tdTipo.style.padding = '10px';
-                tdTipo.style.verticalAlign = 'middle';
+            // EXTRAER Y POBLAR TOTAL GRUPOS
+            if (rows && rows.length > 0) {
+                // DEBUG: Mostrar estructura de la primera fila para identificar el campo correcto
+                console.log('🔍 DEBUG Total Grupos - Primera fila completa:', rows[0]);
+                console.log('🔍 DEBUG Total Grupos - Claves disponibles:', Object.keys(rows[0]));
+                console.log('🔍 DEBUG Total Grupos - Valor rows[0].salones:', rows[0].salones);
+                console.log('🔍 DEBUG Total Grupos - Valor rows[0].Salones:', rows[0].Salones);
                 
-                const datos = edadData[tipoCategoria];
-                const tipoId = datos.tipoId || tipoCategoria.replace(' ', '_');
-
-                tdTipo.innerHTML = `
-                    <div style="display:flex;gap:8px;justify-content:center;align-items:center;">
-                        <div style="flex:1;max-width:110px;">
-                            <div style="display:flex;align-items:center;gap:4px;padding:6px 8px;background:#e3f2fd;border-radius:6px;border:1px solid #90caf9;margin-bottom:6px;">
-                                <div style="font-weight:700;color:#1976d2;font-size:14px;min-width:20px;">M</div>
-                                <input type="number" 
-                                       id="input_${tipoId}_${grupoId}_M" 
-                                       value="${datos.M || 0}" 
-                                       min="0" 
-                                       class="input-matricula-nueva" 
-                                       data-tipo-ingreso="${tipoId}" 
-                                       data-grupo-edad="${grupoId}" 
-                                       data-sexo="M" 
-                                       style="width:100%;padding:6px 8px;border:2px solid #2196f3;border-radius:4px;background:#fff;color:#1976d2;font-weight:600;text-align:center;font-size:14px;" 
-                                       placeholder="0">
-                            </div>
-                            <div style="display:flex;align-items:center;gap:4px;padding:6px 8px;background:#fce4ec;border-radius:6px;border:1px solid #f48fb1;">
-                                <div style="font-weight:700;color:#c2185b;font-size:14px;min-width:20px;">F</div>
-                                <input type="number" 
-                                       id="input_${tipoId}_${grupoId}_F" 
-                                       value="${datos.F || 0}" 
-                                       min="0" 
-                                       class="input-matricula-nueva" 
-                                       data-tipo-ingreso="${tipoId}" 
-                                       data-grupo-edad="${grupoId}" 
-                                       data-sexo="F" 
-                                       style="width:100%;padding:6px 8px;border:2px solid #e91e63;border-radius:4px;background:#fff;color:#c2185b;font-weight:600;text-align:center;font-size:14px;" 
-                                       placeholder="0">
-                            </div>
-                        </div>
-                    </div>`;
-
-                tr.appendChild(tdEdad.cloneNode ? tdEdad.cloneNode(true) : tdEdad);
-                tdEdad = null; // Solo agregar edad una vez
-            });
-
-            // Agregar celdas de tipos de ingreso
-            ['Nuevo Ingreso', 'Reingreso', 'Repetidores'].forEach((tipoCategoria, idx) => {
-                const tdTipo = document.createElement('td');
-                tdTipo.style.padding = '10px';
-                tdTipo.style.verticalAlign = 'middle';
-                
-                const datos = edadData[tipoCategoria];
-                const tipoId = datos.tipoId || tipoCategoria.replace(' ', '_');
-
-                tdTipo.innerHTML = `
-                    <div style="display:flex;gap:8px;justify-content:center;align-items:center;">
-                        <div style="flex:1;max-width:110px;">
-                            <div style="display:flex;align-items:center;gap:4px;padding:6px 8px;background:#e3f2fd;border-radius:6px;border:1px solid #90caf9;margin-bottom:6px;">
-                                <div style="font-weight:700;color:#1976d2;font-size:14px;min-width:20px;">M</div>
-                                <input type="number" 
-                                       id="input_${tipoId}_${grupoId}_M" 
-                                       value="${datos.M || 0}" 
-                                       min="0" 
-                                       class="input-matricula-nueva" 
-                                       data-tipo-ingreso="${tipoId}" 
-                                       data-grupo-edad="${grupoId}" 
-                                       data-sexo="M" 
-                                       style="width:100%;padding:6px 8px;border:2px solid #2196f3;border-radius:4px;background:#fff;color:#1976d2;font-weight:600;text-align:center;font-size:14px;" 
-                                       placeholder="0">
-                            </div>
-                            <div style="display:flex;align-items:center;gap:4px;padding:6px 8px;background:#fce4ec;border-radius:6px;border:1px solid #f48fb1;">
-                                <div style="font-weight:700;color:#c2185b;font-size:14px;min-width:20px;">F</div>
-                                <input type="number" 
-                                       id="input_${tipoId}_${grupoId}_F" 
-                                       value="${datos.F || 0}" 
-                                       min="0" 
-                                       class="input-matricula-nueva" 
-                                       data-tipo-ingreso="${tipoId}" 
-                                       data-grupo-edad="${grupoId}" 
-                                       data-sexo="F" 
-                                       style="width:100%;padding:6px 8px;border:2px solid #e91e63;border-radius:4px;background:#fff;color:#c2185b;font-weight:600;text-align:center;font-size:14px;" 
-                                       placeholder="0">
-                            </div>
-                        </div>
-                    </div>`;
-
-                if (idx === 0) {
-                    tr.appendChild(tdEdad);
+                // Obtener el valor de 'salones' de la primera fila (todos deberían tener el mismo valor)
+                // Usar valores exactos sin || para evitar problemas con 0
+                let totalGrupos = 0;
+                if (rows[0].hasOwnProperty('salones')) {
+                    totalGrupos = parseInt(rows[0].salones) || 0;
+                } else if (rows[0].hasOwnProperty('Salones')) {
+                    totalGrupos = parseInt(rows[0].Salones) || 0;
+                } else if (rows[0].hasOwnProperty('SALONES')) {
+                    totalGrupos = parseInt(rows[0].SALONES) || 0;
                 }
-                tr.appendChild(tdTipo);
+                console.log('📊 Total Grupos extraído del SP:', totalGrupos);
+                
+                // Poblar el input
+                const totalGruposInput = document.getElementById('input-total-grupos');
+                if (totalGruposInput) {
+                    totalGruposInput.value = totalGrupos.toString();
+                    console.log('✅ Input Total Grupos poblado con valor:', totalGrupos);
+                } else {
+                    console.error('❌ No se encontró el input con ID "input-total-grupos"');
+                }
+            }
+            
+            // PRIMERO: Cargar estados validados guardados en localStorage
+            cargarEstadosValidadosDeLocalStorage();
+            
+            // NUEVA LÓGICA: Extraer estados de semáforo del SP (ahora respeta los estados validados)
+            // IMPORTANTE: Esto también actualiza semestresDisponiblesSP con los semestres únicos del SP
+            procesarEstadosSemaforoDelSP(rows);
+            
+            // REGENERAR PESTAÑAS basadas en los semestres reales del SP
+            if (semestresDisponiblesSP && semestresDisponiblesSP.length > 0) {
+                console.log('🔄 Regenerando pestañas con semestres del SP:', semestresDisponiblesSP);
+                
+                // Obtener información del programa y periodo
+                const programaSelect = document.getElementById('programa');
+                const programaTexto = programaSelect ? programaSelect.selectedOptions[0]?.text : '';
+                
+                // Usar la variable global periodoLiteral del backend
+                const periodoTexto = periodoLiteral || '';
+                
+                let semestresAMostrar = [...semestresDisponiblesSP];
+                
+                // Detectar si el periodo termina en /1 o /2
+                const esPeriodo1 = periodoTexto.includes('/1');
+                const esPeriodo2 = periodoTexto.includes('/2');
+                
+                console.log('📊 Contexto actual:');
+                console.log('   Programa:', programaTexto);
+                console.log('   Periodo:', periodoTexto);
+                console.log('   Es periodo /1:', esPeriodo1);
+                console.log('   Es periodo /2:', esPeriodo2);
+                
+                // LÓGICA 1: Tronco Común
+                if (programaTexto && programaTexto.toLowerCase().includes('tronco común')) {
+                    console.log('🎓 TRONCO COMÚN detectado');
+                    
+                    if (esPeriodo1) {
+                        semestresAMostrar = [1]; // Solo Semestre 1 para periodo /1
+                        console.log('   ✅ Periodo /1 → Mostrando SOLO Semestre 1');
+                    } else if (esPeriodo2) {
+                        semestresAMostrar = [2]; // Solo Semestre 2 para periodo /2
+                        console.log('   ✅ Periodo /2 → Mostrando SOLO Semestre 2');
+                    } else {
+                        console.warn('   ⚠️ Periodo sin /1 ni /2, mostrando semestres disponibles del SP');
+                    }
+                }
+                // LÓGICA 2: Técnico en... (Medio Superior)
+                else if (programaTexto && (programaTexto.toLowerCase().includes('técnico') || programaTexto.toLowerCase().includes('tecnico'))) {
+                    console.log('🔧 TÉCNICO (Medio Superior) detectado');
+                    
+                    // Eliminar semestres 1 y 2 (exclusivos de Tronco Común)
+                    semestresAMostrar = semestresAMostrar.filter(sem => sem > 2);
+                    console.log('   🚫 Removidos semestres 1 y 2:', semestresAMostrar);
+                    
+                    if (esPeriodo1) {
+                        // Periodo /1: Solo semestres IMPARES (3, 5, 7, 9...)
+                        semestresAMostrar = semestresAMostrar.filter(sem => sem % 2 !== 0);
+                        console.log('   ✅ Periodo /1 → Mostrando solo IMPARES:', semestresAMostrar);
+                    } else if (esPeriodo2) {
+                        // Periodo /2: Solo semestres PARES (4, 6, 8, 10...)
+                        semestresAMostrar = semestresAMostrar.filter(sem => sem % 2 === 0);
+                        console.log('   ✅ Periodo /2 → Mostrando solo PARES:', semestresAMostrar);
+                    } else {
+                        console.warn('   ⚠️ Periodo sin /1 ni /2, mostrando todos (excepto 1 y 2)');
+                    }
+                }
+                // LÓGICA 3: Otros programas (usar semestres del SP)
+                else {
+                    console.log('📚 Otro tipo de programa, usando semestres del SP sin filtrar');
+                }
+                
+                console.log('🎯 Semestres finales a mostrar:', semestresAMostrar);
+                
+                // Validar que haya al menos un semestre para mostrar
+                if (semestresAMostrar.length === 0) {
+                    console.error('❌ No hay semestres disponibles después del filtrado!');
+                    alert('No hay semestres disponibles para este programa y periodo.');
+                    return;
+                }
+                
+                // Generar las pestañas
+                generarPestanasSemestres(semestresAMostrar);
+                
+                // Validar que el semestre actual esté en la lista de disponibles
+                const semestreActualElement = document.getElementById('semestre');
+                const semestreActualId = semestreActualElement ? parseInt(semestreActualElement.value) : null;
+                
+                // Si el semestre actual no está en los disponibles, seleccionar el primero
+                if (!semestresAMostrar.includes(semestreActualId)) {
+                    const primerSemestre = semestresAMostrar[0];
+                    console.log(`⚠️ Semestre ${semestreActualId} no disponible. Cambiando a semestre ${primerSemestre}`);
+                    semestreActualElement.value = primerSemestre;
+                    
+                    // Actualizar pestaña activa
+                    const tabs = document.querySelectorAll('.semestre-tab');
+                    tabs.forEach(tab => {
+                        if (parseInt(tab.getAttribute('data-semestre')) === primerSemestre) {
+                            tab.classList.add('active');
+                        } else {
+                            tab.classList.remove('active');
+                        }
+                    });
+                }
+            } else {
+                console.warn('⚠️ No se extrajeron semestres del SP, usando configuración por defecto');
+            }
+            
+            // PROCESAR Y GUARDAR DATOS DE TODOS LOS SEMESTRES
+            procesarYGuardarDatosPorSemestre(rows);
+            
+            const tbody = document.getElementById('matricula-tbody');
+            
+            // Validar que el tbody exista
+            if (!tbody) {
+                console.error('❌ Error: No se encontró el elemento tbody con id "matricula-tbody"');
+                return;
+            }
+            
+            tbody.innerHTML = '';
+
+            if (!rows || rows.length === 0) {
+                console.log('⚠️ No hay rows para renderizar, generando tabla vacía');
+                generarTablaVacia();
+                return;
+            }
+
+            // Obtener el semestre actualmente seleccionado
+            const semestreActualElement = document.getElementById('semestre');
+            const semestreActualId = semestreActualElement ? parseInt(semestreActualElement.value) : null;
+            
+            // Obtener el nombre del semestre actual desde el mapa
+            const semestreActualNombre = semestreActualId ? semestresMap[semestreActualId] : null;
+            
+            console.log(`📌 Semestre seleccionado: ID=${semestreActualId}, Nombre="${semestreActualNombre}"`);
+
+            // Heurísticas para columnas posibles
+            const tipoCandidates = ['Id_Tipo_Ingreso','Id_TipoIngreso','Tipo_Id','Tipo_de_Ingreso','TipoIngreso','Tipo_Ingreso','Tipo'];
+            const grupoCandidates = ['Id_Grupo_Edad','Id_GrupoEdad','IdGrupoEdad','Grupo_Edad','GrupoEdad','Grupo'];
+            const sexoCandidates = ['Id_Sexo','IdSexo','Sexo','Genero','Nombre_Sexo'];
+            const matriculaCandidates = ['Matricula','Total','Cantidad','Numero','Valor'];
+            const semestreCandidates = ['Semestre', 'Id_Semestre', 'IdSemestre'];
+            
+            console.log('Columnas disponibles en la primera fila:', Object.keys(rows[0]));
+
+            // Determinar columnas presentes
+            const first = rows[0] || {};
+            const keys = Object.keys(first);
+
+            function findKey(cands) {
+                for (let c of cands) if (keys.includes(c)) return c;
+                const low = keys.reduce((acc,k)=>{acc[k.toLowerCase()]=k;return acc;},{})
+                for (let c of cands) if (low[c.toLowerCase()]) return low[c.toLowerCase()];
+                return null;
+            }
+
+            const tipoKey = findKey(tipoCandidates);
+            const grupoKey = findKey(grupoCandidates);
+            const sexoKey = findKey(sexoCandidates);
+            const matriculaKey = findKey(matriculaCandidates);
+            const semestreKey = findKey(semestreCandidates);
+
+            // FILTRAR: Solo procesar filas del semestre actual
+            const rowsFiltradas = rows.filter(r => {
+                if (!semestreKey || !semestreActualNombre) return true; // Si no hay info de semestre, procesar todas
+                
+                const semestreRow = r[semestreKey];
+                const match = String(semestreRow).toLowerCase() === semestreActualNombre.toLowerCase();
+                
+                if (!match) {
+                    console.log(`⏭️ Saltando fila: Semestre "${semestreRow}" no coincide con "${semestreActualNombre}"`);
+                }
+                
+                return match;
             });
 
-            tbody.appendChild(tr);
-        });
+            console.log(`🔍 Filtrando: ${rows.length} filas totales → ${rowsFiltradas.length} filas del semestre "${semestreActualNombre}"`);
+
+            if (rowsFiltradas.length === 0) {
+                console.log('⚠️ No hay datos para el semestre seleccionado, generando tabla vacía');
+                generarTablaVacia();
+                return;
+            }
+
+            // Construir estructura: agrupar por edad y tipo de ingreso
+            const edadMap = {};
+            
+            console.log('🔍 Procesando rows del SP para poblar inputs...');
+            
+            rowsFiltradas.forEach((r, index) => {
+                const tipoVal = tipoKey ? r[tipoKey] : (r['Tipo_de_Ingreso'] || r['Tipo'] || r['TipoIngreso'] || null);
+                const grupoVal = grupoKey ? r[grupoKey] : (r['Grupo_Edad'] || r['Grupo'] || r['GrupoEdad'] || null);
+                const sexoVal = sexoKey ? r[sexoKey] : (r['Sexo'] || r['Genero'] || null);
+                const matriculaVal = matriculaKey ? r[matriculaKey] : (r['Matricula'] || r['Total'] || 0);
+
+                console.log(`Row ${index + 1}:`, {
+                    tipo: tipoVal,
+                    grupo: grupoVal,
+                    sexo: sexoVal,
+                    matricula: matriculaVal
+                });
+
+                const grupoId = String(grupoVal || '');
+                const grupoLabel = String(grupoVal || '');
+                
+                // Determinar sexo: Hombre/M → M, Mujer/F → F
+                let sexo = 'M';
+                if (sexoVal) {
+                    const sexoStr = String(sexoVal).toLowerCase();
+                    if (sexoStr.includes('mujer') || sexoStr.startsWith('f')) {
+                        sexo = 'F';
+                    }
+                }
+                
+                // Normalizar tipo de ingreso y mapear a ID
+                let tipoCategoria = 'Nuevo Ingreso';
+                let tipoId = '1'; // Default
+                
+                if (tipoVal) {
+                    const tipoNorm = String(tipoVal).toLowerCase();
+                    if (tipoNorm.includes('nuevo')) {
+                        tipoCategoria = 'Nuevo Ingreso';
+                        tipoId = '1';
+                    } else if (tipoNorm.includes('reingreso') || tipoNorm.includes('re-ingreso')) {
+                        tipoCategoria = 'Reingreso';
+                        tipoId = '2';
+                    } else if (tipoNorm.includes('repet') || tipoNorm.includes('repetidor')) {
+                        tipoCategoria = 'Repetidores';
+                        tipoId = '3';
+                    }
+                }
+
+                console.log(`✅ Procesando: Grupo=${grupoId}, Tipo=${tipoCategoria}(ID:${tipoId}), Sexo=${sexo}, Valor=${matriculaVal}`);
+
+                // Inicializar estructura para este grupo de edad
+                if (!edadMap[grupoId]) {
+                    edadMap[grupoId] = {
+                        grupoLabel: grupoLabel,
+                        'Nuevo Ingreso': { tipoId: '1', M: 0, F: 0 },
+                        'Reingreso': { tipoId: '2', M: 0, F: 0 },
+                        'Repetidores': { tipoId: '3', M: 0, F: 0 }
+                    };
+                }
+                
+                // Asignar el valor de matrícula (incluyendo 0)
+                const v = parseInt(matriculaVal) || 0;
+                if (v >= 0) {
+                    edadMap[grupoId][tipoCategoria][sexo] = v;
+                    console.log(`🎯 Asignado: ${tipoCategoria} ${sexo} = ${v} (grupo ${grupoId})`);
+                }
+            });
+
+            console.log('📊 edadMap con datos del SP:', edadMap);
+            console.log('🔑 Claves en edadMap:', Object.keys(edadMap));
+
+            // Usar TODOS los grupos de edad definidos, no solo los que tienen datos
+            if (!gruposEdad || gruposEdad.length === 0) {
+                console.log('⚠️ No hay grupos de edad definidos');
+                generarTablaVacia();
+                return;
+            }
+
+            console.log('📊 Grupos de edad disponibles (sin ordenar):', gruposEdad.map(g => `${g.Grupo_Edad} (ID:${g.Id_Grupo_Edad})`));
+
+            // Función para ordenar grupos de edad correctamente
+            function ordenarGruposEdad(grupos) {
+                // Crear una copia del array para no modificar el original
+                const gruposCopia = [...grupos];
+                
+                return gruposCopia.sort((a, b) => {
+                    const edadA = String(a.Grupo_Edad).trim();
+                    const edadB = String(b.Grupo_Edad).trim();
+                    
+                    console.log(`🔄 Comparando: "${edadA}" vs "${edadB}"`);
+                    
+                    // Casos especiales: <18 va primero
+                    if (edadA.startsWith('<') && !edadB.startsWith('<')) {
+                        console.log(`  → "${edadA}" va primero (es <)`);
+                        return -1;
+                    }
+                    if (!edadA.startsWith('<') && edadB.startsWith('<')) {
+                        console.log(`  → "${edadB}" va primero (es <)`);
+                        return 1;
+                    }
+                    
+                    // Casos especiales: >=40 va al final
+                    if ((edadA.startsWith('>') || edadA.includes('>=')) && !(edadB.startsWith('>') || edadB.includes('>='))) {
+                        console.log(`  → "${edadA}" va al final (es >)`);
+                        return 1;
+                    }
+                    if (!(edadA.startsWith('>') || edadA.includes('>=')) && (edadB.startsWith('>') || edadB.includes('>='))) {
+                        console.log(`  → "${edadB}" va al final (es >)`);
+                        return -1;
+                    }
+                    
+                    // Para números o rangos, extraer el primer número
+                    const getNumero = (str) => {
+                        // Extraer el primer número encontrado
+                        const match = str.match(/\d+/);
+                        return match ? parseInt(match[0]) : 999;
+                    };
+                    
+                    const numA = getNumero(edadA);
+                    const numB = getNumero(edadB);
+                    
+                    console.log(`  → Números extraídos: ${numA} vs ${numB}`);
+                    
+                    return numA - numB;
+                });
+            }
+
+            // Ordenar grupos de edad
+            console.log('🔀 Iniciando ordenamiento...');
+            const gruposEdadOrdenados = ordenarGruposEdad(gruposEdad);
+            console.log('✅ Grupos de edad ordenados:', gruposEdadOrdenados.map(g => `${g.Grupo_Edad} (ID:${g.Id_Grupo_Edad})`));
+
+            // Renderizar filas por TODOS los grupos de edad (no solo los que tienen datos)
+            gruposEdadOrdenados.forEach((edadObj, index) => {
+                const grupoIdBD = edadObj.Id_Grupo_Edad; // Este es el ID en la BD: 4, 5, 6, etc.
+                const grupoValor = String(edadObj.Grupo_Edad); // Este es el valor real: "18", "19", etc.
+                const grupoLabel = grupoValor;
+                
+                // Buscar si hay datos para este grupo de edad en el edadMap
+                // El edadMap usa el VALOR como clave ("18"), no el ID
+                const edadData = edadMap[grupoValor] || {
+                    grupoLabel: grupoLabel,
+                    'Nuevo Ingreso': { tipoId: '1', M: 0, F: 0 },
+                    'Reingreso': { tipoId: '2', M: 0, F: 0 },
+                    'Repetidores': { tipoId: '3', M: 0, F: 0 }
+                };
+                
+                // Log detallado para depuración
+                if (edadMap[grupoValor]) {
+                    console.log(`✅ Fila ${index}: Grupo "${grupoValor}" (ID:${grupoIdBD}) - Tiene datos:`, edadMap[grupoValor]);
+                } else {
+                    console.log(`⚪ Fila ${index}: Grupo "${grupoValor}" (ID:${grupoIdBD}) - Sin datos (vacío)`);
+                }
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #e0e0e0';
+                tr.style.transition = 'all 0.2s ease';
+                tr.onmouseover = () => tr.style.backgroundColor = '#f5f5f5';
+                tr.onmouseout = () => tr.style.backgroundColor = '';
+
+                // Columna de Edad (solo una vez)
+                const tdEdad = document.createElement('td');
+                tdEdad.textContent = edadData.grupoLabel || grupoValor;
+                tdEdad.style.padding = '12px';
+                tdEdad.style.textAlign = 'center';
+                tdEdad.style.fontWeight = '500';
+                tdEdad.style.fontSize = '15px';
+                tdEdad.style.color = '#424242';
+                tdEdad.style.background = '#f8f9fa';
+                tdEdad.style.verticalAlign = 'middle';
+                tr.appendChild(tdEdad);
+
+                // Columnas para cada tipo de ingreso
+                ['Nuevo Ingreso', 'Reingreso', 'Repetidores'].forEach(tipoCategoria => {
+                    const tdTipo = document.createElement('td');
+                    tdTipo.style.padding = '10px';
+                    tdTipo.style.verticalAlign = 'middle';
+                    
+                    const datos = edadData[tipoCategoria];
+                    const tipoId = datos.tipoId;
+
+                    // Obtener valores del SP
+                    const valorM = datos.M || 0;
+                    const valorF = datos.F || 0;
+                    
+                    console.log(`🎯 Generando inputs: ${tipoCategoria} - Grupo "${grupoValor}" (ID:${grupoIdBD}) - M:${valorM}, F:${valorF}`);
+                    
+                    tdTipo.innerHTML = `
+                    <div style="display:inline-flex; gap:6px; justify-content:center; align-items:center; width:auto;">
+                        
+                        <div style="display:inline-flex; align-items:center; gap:3px; padding:2px 4px; background:#e3f2fd; border-radius:4px; border:1px solid #90caf9; line-height:1;">
+                            <div style="font-weight:700;color:#1976d2;font-size:11px;min-width:14px;text-align:center;">H</div>
+                            <input type="number" 
+                                id="input_${tipoId}_${grupoIdBD}_M" 
+                                value="${valorM >= 0 ? valorM : ''}" 
+                                min="0" 
+                                class="input-matricula-nueva" 
+                                data-tipo-ingreso="${tipoId}" 
+                                data-grupo-edad="${grupoIdBD}" 
+                                data-sexo="M" 
+                                style="width:42px;padding:2px 3px;border:2px solid #2196f3;border-radius:3px;background:#fff;color:#1976d2;font-weight:600;text-align:center;font-size:11px;line-height:1.1;" 
+                                placeholder="">
+                        </div>
+
+                        <div style="display:inline-flex; align-items:center; gap:3px; padding:2px 4px; background:#fce4ec; border-radius:4px; border:1px solid #f48fb1; line-height:1;">
+                            <div style="font-weight:700;color:#c2185b;font-size:11px;min-width:14px;text-align:center;">M</div>
+                            <input type="number" 
+                                id="input_${tipoId}_${grupoIdBD}_F" 
+                                value="${valorF >= 0 ? valorF : ''}" 
+                                min="0" 
+                                class="input-matricula-nueva" 
+                                data-tipo-ingreso="${tipoId}" 
+                                data-grupo-edad="${grupoIdBD}" 
+                                data-sexo="F" 
+                                style="width:42px;padding:2px 3px;border:2px solid #e91e63;border-radius:3px;background:#fff;color:#c2185b;font-weight:600;text-align:center;font-size:11px;line-height:1.1;" 
+                                placeholder="">
+                        </div>
+                    </div>`;
+
+                    tr.appendChild(tdTipo);
+                });
+
+                tbody.appendChild(tr);
+            });
 
         // Agregar fila de totales
         const trTot = document.createElement('tr');
@@ -440,6 +942,8 @@
                         </div>
                     </div>
                 </div>
+                <div id="totales-fijos-container">
+                </div>
             </td>`;
         tbody.appendChild(trTot);
 
@@ -448,6 +952,10 @@
         inputs.forEach(input => {
             input.addEventListener('input', calcularTotales);
             input.addEventListener('change', calcularTotales);
+            input.addEventListener('focus', scrollToVisibleInput);
+            // Guardar datos automáticamente cuando cambie el valor
+            input.addEventListener('input', guardarDatosSemestreActual);
+            input.addEventListener('change', guardarDatosSemestreActual);
         });
 
         // Si se pasó un datosMap, poblar valores
@@ -462,6 +970,24 @@
                 }
             }
         }
+
+        // Restaurar datos guardados del semestre actual después de renderizar
+        // NOTA: Solo restaurar si hay datos guardados localmente, 
+        // de lo contrario conservar los valores que vienen del SP
+        const semestreActual = parseInt(document.getElementById('semestre').value);
+        setTimeout(() => {
+            const datosExistentes = datosMatriculaPorSemestre[semestreActual] || {};
+            if (Object.keys(datosExistentes).length > 0) {
+                console.log('📦 Hay datos guardados localmente, restaurando...');
+                restaurarDatosSemestre(semestreActual);
+            } else {
+                console.log('📊 No hay datos guardados localmente');
+                console.log('   (Los datos del SP ya fueron guardados por procesarYGuardarDatosPorSemestre)');
+                
+                // Solo aplicar reglas de validación por semestre
+                updateInputsBySemestre(semestreActual);
+            }
+        }, 100); // Pequeño delay para asegurar que los inputs estén renderizados
 
         calcularTotales();
     }
@@ -495,15 +1021,30 @@
         if (totalMasculinoEl) totalMasculinoEl.textContent = totalMasculino;
         if (totalFemeninoEl) totalFemeninoEl.textContent = totalFemenino;
         if (totalGeneralEl) totalGeneralEl.textContent = totalGeneral;
+        
+        // Actualizar colores del semáforo en las pestañas
+        if (typeof actualizarColoresPestanas === 'function') {
+            actualizarColoresPestanas();
+        }
     }
 
     // Función para generar tabla vacía con estructura basada en grupos de edad del backend
     function generarTablaVacia() {
+        // Limpiar estados de semáforo al generar tabla vacía
+        estadosSemaforoPorSemestre = {};
+        console.log('🚦 Estados de semáforo limpiados (tabla vacía)');
+        
         const tbody = document.getElementById('matricula-tbody');
+        
+        // Validar que el tbody exista antes de intentar acceder a él
+        if (!tbody) {
+            console.error('❌ Error: No se encontró el elemento tbody con id "matricula-tbody"');
+            return;
+        }
+        
         tbody.innerHTML = '';
         
-        // Usar grupos de edad del backend en lugar de valores predefinidos
-        const gruposEdad = {{ grupos_edad | tojson }};
+        // Usar grupos de edad globales del backend
         console.log('Grupos de edad desde backend para tabla vacía:', gruposEdad);
         
         // Si no hay grupos de edad del backend, usar valores por defecto
@@ -557,42 +1098,44 @@
                 tdTipo.style.verticalAlign = 'middle';
                 
                 tdTipo.innerHTML = `
-                    <div style="display:flex;gap:8px;justify-content:center;align-items:center;">
-                        <div style="flex:1;max-width:110px;">
-                            <div style="display:flex;align-items:center;gap:4px;padding:6px 8px;background:#e3f2fd;border-radius:6px;border:1px solid #90caf9;margin-bottom:6px;">
-                                <div style="font-weight:700;color:#1976d2;font-size:14px;min-width:20px;">M</div>
-                                <input type="number" 
-                                       id="input_${tipo.id}_${edadObj.id}_M" 
-                                       value="" 
-                                       min="0" 
-                                       class="input-matricula-nueva" 
-                                       data-tipo-ingreso="${tipo.id}" 
-                                       data-grupo-edad="${edadObj.id}" 
-                                       data-sexo="M" 
-                                       style="width:100%;padding:6px 8px;border:2px solid #2196f3;border-radius:4px;background:#fff;color:#1976d2;font-weight:600;text-align:center;font-size:14px;" 
-                                       placeholder="">
-                            </div>
-                            <div style="display:flex;align-items:center;gap:4px;padding:6px 8px;background:#fce4ec;border-radius:6px;border:1px solid #f48fb1;">
-                                <div style="font-weight:700;color:#c2185b;font-size:14px;min-width:20px;">F</div>
-                                <input type="number" 
-                                       id="input_${tipo.id}_${edadObj.id}_F" 
-                                       value="" 
-                                       min="0" 
-                                       class="input-matricula-nueva" 
-                                       data-tipo-ingreso="${tipo.id}" 
-                                       data-grupo-edad="${edadObj.id}" 
-                                       data-sexo="F" 
-                                       style="width:100%;padding:6px 8px;border:2px solid #e91e63;border-radius:4px;background:#fff;color:#c2185b;font-weight:600;text-align:center;font-size:14px;" 
-                                       placeholder="">
-                            </div>
-                        </div>
-                    </div>`;
-                
-                tr.appendChild(tdTipo);
-            });
+                <div style="display:inline-flex; gap:6px; justify-content:center; align-items:center; width:auto; /* Contenedor general */">
+                    
+                    <div style="display:inline-flex; align-items:center; gap:3px; padding:2px 4px; background:#e3f2fd; border-radius:4px; border:1px solid #90caf9; line-height:1;">
+                        <div style="font-weight:700;color:#1976d2;font-size:11px;min-width:14px;text-align:center;">H</div>
+                        <input type="number" 
+                            id="input_${tipo.id}_${edadObj.id}_M" 
+                            value="" 
+                            min="0" 
+                            class="input-matricula-nueva" 
+                            data-tipo-ingreso="${tipo.id}" 
+                            data-grupo-edad="${edadObj.id}" 
+                            data-sexo="M" 
+                            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                            style="width:42px;padding:2px 3px;border:2px solid #2196f3;border-radius:3px;background:#fff;color:#1976d2;font-weight:600;text-align:center;font-size:11px;line-height:1.1;" 
+                            placeholder="">
+                    </div>
+
+                    <div style="display:inline-flex; align-items:center; gap:3px; padding:2px 4px; background:#fce4ec; border-radius:4px; border:1px solid #f48fb1; line-height:1;">
+                        <div style="font-weight:700;color:#c2185b;font-size:11px;min-width:14px;text-align:center;">M</div>
+                        <input type="number" 
+                            id="input_${tipo.id}_${edadObj.id}_F" 
+                            value="" 
+                            min="0" 
+                            class="input-matricula-nueva" 
+                            data-tipo-ingreso="${tipo.id}" 
+                            data-grupo-edad="${edadObj.id}" 
+                            data-sexo="F" 
+                            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                            style="width:42px;padding:2px 3px;border:2px solid #e91e63;border-radius:3px;background:#fff;color:#c2185b;font-weight:600;text-align:center;font-size:11px;line-height:1.1;" 
+                            placeholder="">
+                    </div>
+                </div>`;
             
-            tbody.appendChild(tr);
+            tr.appendChild(tdTipo);
         });
+        
+        tbody.appendChild(tr);
+    });
         
         // Agregar fila de totales
         const trTot = document.createElement('tr');
@@ -630,7 +1173,26 @@
         inputs.forEach(input => {
             input.addEventListener('input', calcularTotales);
             input.addEventListener('change', calcularTotales);
+            input.addEventListener('focus', scrollToVisibleInput);
+            // Guardar datos automáticamente cuando cambie el valor
+            input.addEventListener('input', guardarDatosSemestreActual);
+            input.addEventListener('change', guardarDatosSemestreActual);
         });
+        
+        // Restaurar datos guardados del semestre actual después de renderizar
+        // NOTA: Solo restaurar si hay datos guardados localmente
+        const semestreActual = parseInt(document.getElementById('semestre').value);
+        setTimeout(() => {
+            const datosExistentes = datosMatriculaPorSemestre[semestreActual] || {};
+            if (Object.keys(datosExistentes).length > 0) {
+                console.log('📦 Hay datos guardados localmente (tabla vacía), restaurando...');
+                restaurarDatosSemestre(semestreActual);
+            } else {
+                console.log('📊 No hay datos guardados (tabla vacía), tabla queda vacía');
+                // Solo aplicar reglas de validación por semestre
+                updateInputsBySemestre(semestreActual);
+            }
+        }, 100); // Pequeño delay para asegurar que los inputs estén renderizados
         
         calcularTotales();
     }
@@ -638,6 +1200,94 @@
     // Variables globales para manejo de turnos
     let turnosDisponibles = {{ turnos | tojson }};
     let turnoActualIndex = 0;
+
+    // Variables globales para semáforo de semestres
+    let semaforoEstados = {{ semaforo_estados | tojson }};
+    console.log('🚦 Estados del semáforo cargados:', semaforoEstados);
+
+    // Almacén global de datos por semestre
+    let datosMatriculaPorSemestre = {};
+
+    // Almacén de estados de semáforo por semestre (viene del SP)
+    let estadosSemaforoPorSemestre = {};
+    
+    // Almacén de semestres disponibles extraídos del SP (dinámico por nivel educativo)
+    let semestresDisponiblesSP = [];
+
+    // ============================================
+    // FUNCIONES PARA PERSISTENCIA DE SEMÁFOROS
+    // ============================================
+    
+    /**
+     * Genera una clave única para localStorage basada en los filtros actuales
+     * Formato: "semaforo_periodoId_programaId_modalidadId_turnoId"
+     */
+    function generarClaveLocalStorage() {
+        const periodo = document.getElementById('periodo').value;
+        const programa = document.getElementById('programa').value;
+        const modalidad = document.getElementById('modalidad').value;
+        const turno = document.getElementById('turno').value;
+        
+        return `semaforo_${periodo}_${programa}_${modalidad}_${turno}`;
+    }
+    
+    /**
+     * Guarda los estados validados (estado 3) en localStorage
+     */
+    function guardarEstadosValidadosEnLocalStorage() {
+        const clave = generarClaveLocalStorage();
+        
+        // Filtrar solo los semestres con estado 3 (validados)
+        const estadosValidados = {};
+        for (let semestre in estadosSemaforoPorSemestre) {
+            if (estadosSemaforoPorSemestre[semestre] === 3) {
+                estadosValidados[semestre] = 3;
+            }
+        }
+        
+        try {
+            localStorage.setItem(clave, JSON.stringify(estadosValidados));
+            console.log(`💾 Estados validados guardados en localStorage:`, estadosValidados);
+        } catch (e) {
+            console.error('❌ Error al guardar en localStorage:', e);
+        }
+    }
+    
+    /**
+     * Carga los estados validados desde localStorage
+     */
+    function cargarEstadosValidadosDeLocalStorage() {
+        const clave = generarClaveLocalStorage();
+        
+        try {
+            const datos = localStorage.getItem(clave);
+            if (datos) {
+                const estadosValidados = JSON.parse(datos);
+                console.log(`📂 Estados validados cargados desde localStorage:`, estadosValidados);
+                return estadosValidados;
+            }
+        } catch (e) {
+            console.error('❌ Error al cargar desde localStorage:', e);
+        }
+        
+        return {}; // Retornar objeto vacío si no hay datos
+    }
+    
+    /**
+     * Marca un semestre como validado (estado 3) y lo persiste
+     */
+    function marcarSemestreComoValidado(semestreNum) {
+        console.log(`✅ Marcando semestre ${semestreNum} como validado (estado 3)`);
+        
+        // Actualizar en memoria
+        estadosSemaforoPorSemestre[semestreNum] = 3;
+        
+        // Persistir en localStorage
+        guardarEstadosValidadosEnLocalStorage();
+        
+        // Actualizar UI
+        actualizarColoresPestanas();
+    }
 
     // Función para cambiar turno
     function cambiarTurno(direccion) {
@@ -660,28 +1310,177 @@
         cargarDatosExistentes();
     }
 
-    // Función para generar pestañas de semestres
-    function generarPestanasSemestres(maxSemestre) {
+    // Función para determinar el estado de progreso de un semestre
+    function determinarEstadoSemestre(semestreNum) {
+        // Buscar el estado del semáforo que viene del SP para este semestre
+        const estadoDelSP = estadosSemaforoPorSemestre[semestreNum];
+        
+        if (estadoDelSP) {
+            console.log(`🚦 Semestre ${semestreNum}: Estado del SP = ${estadoDelSP}`);
+            return estadoDelSP;
+        }
+        
+        // Si no hay estado del SP, usar estado por defecto (sin datos)
+        console.log(`🚦 Semestre ${semestreNum}: Sin estado del SP, usando estado por defecto (1)`);
+        return 1; // Estado por defecto - Sin datos
+    }
+
+    // Función para generar pestañas de semestres con semáforo
+    // Ahora acepta un array de semestres o un número máximo (para compatibilidad)
+    function generarPestanasSemestres(semestresParam) {
         const tabsContainer = document.getElementById('semestres-tabs');
         tabsContainer.innerHTML = '';
         
-        for (let i = 1; i <= maxSemestre; i++) {
+        let semestresAGenerar = [];
+        
+        // Si es un número, generar del 1 al número (modo antiguo)
+        if (typeof semestresParam === 'number') {
+            for (let i = 1; i <= semestresParam; i++) {
+                semestresAGenerar.push(i);
+            }
+        } 
+        // Si es un array, usar el array directamente (modo nuevo - del SP)
+        else if (Array.isArray(semestresParam) && semestresParam.length > 0) {
+            semestresAGenerar = [...semestresParam].sort((a, b) => a - b);
+        }
+        // Si no hay parámetro válido, usar semestresDisponiblesSP o generar 6 por defecto
+        else {
+            if (semestresDisponiblesSP && semestresDisponiblesSP.length > 0) {
+                semestresAGenerar = [...semestresDisponiblesSP];
+            } else {
+                // Fallback: generar 6 semestres por defecto
+                for (let i = 1; i <= 6; i++) {
+                    semestresAGenerar.push(i);
+                }
+            }
+        }
+        
+        console.log('🎯 Generando pestañas para semestres:', semestresAGenerar);
+        
+        // Obtener el semestre actualmente seleccionado
+        const semestreActualElement = document.getElementById('semestre');
+        const semestreActualSeleccionado = semestreActualElement ? parseInt(semestreActualElement.value) : null;
+        
+        console.log(`📌 Semestre actualmente seleccionado: ${semestreActualSeleccionado}`);
+        
+        // Generar las pestañas
+        semestresAGenerar.forEach((semestreNum, index) => {
             const tab = document.createElement('button');
             tab.className = 'semestre-tab';
-            tab.textContent = `Semestre ${i}`;
-            tab.setAttribute('data-semestre', i);
-            tab.onclick = () => seleccionarSemestre(i);
+            tab.textContent = `Semestre ${semestreNum}`;
+            tab.setAttribute('data-semestre', semestreNum);
+            tab.onclick = () => seleccionarSemestre(semestreNum);
             
-            if (i === 1) {
+            // Aplicar color del semáforo
+            actualizarColorPestana(tab, semestreNum);
+            
+            // Marcar como activo el semestre que está seleccionado actualmente
+            // Si no hay ninguno seleccionado, marcar el primero
+            if (semestreActualSeleccionado) {
+                if (semestreNum === semestreActualSeleccionado) {
+                    tab.classList.add('active');
+                    console.log(`✅ Pestaña Semestre ${semestreNum} marcada como activa (coincide con seleccionado)`);
+                }
+            } else if (index === 0) {
                 tab.classList.add('active');
+                console.log(`✅ Pestaña Semestre ${semestreNum} marcada como activa (primero por defecto)`);
             }
             
             tabsContainer.appendChild(tab);
+        });
+    }
+
+    // Función para actualizar el color de una pestaña según su estado
+    function actualizarColorPestana(tab, semestreNum) {
+        const estadoId = determinarEstadoSemestre(semestreNum);
+        const estado = semaforoEstados.find(s => s.id === estadoId);
+        
+        if (estado) {
+            // Remover clases de color anteriores
+            tab.classList.remove('semaforo-estado-1', 'semaforo-estado-2', 'semaforo-estado-3');
+            
+            // Agregar clase y estilo para el estado actual
+            tab.classList.add(`semaforo-estado-${estadoId}`);
+            tab.style.setProperty('--semaforo-color', estado.color);
+            
+            // Agregar tooltip con la descripción
+            tab.title = `${estado.descripcion}`;
+            
+            console.log(`🚦 Semestre ${semestreNum}: Estado ${estadoId} (${estado.descripcion}) - Color: ${estado.color}`);
         }
+    }
+
+    // Función para actualizar todos los colores de las pestañas
+    function actualizarColoresPestanas() {
+        const tabs = document.querySelectorAll('.semestre-tab');
+        tabs.forEach(tab => {
+            const semestreNum = parseInt(tab.getAttribute('data-semestre'));
+            actualizarColorPestana(tab, semestreNum);
+        });
+    }
+
+    // Función para guardar datos del semestre actual
+    function guardarDatosSemestreActual() {
+        const semestreActual = parseInt(document.getElementById('semestre').value);
+        const inputs = document.querySelectorAll('input.input-matricula-nueva');
+        
+        // Inicializar almacén para este semestre si no existe
+        if (!datosMatriculaPorSemestre[semestreActual]) {
+            datosMatriculaPorSemestre[semestreActual] = {};
+        }
+        
+        inputs.forEach(input => {
+            const tipoIngreso = input.getAttribute('data-tipo-ingreso');
+            const grupoEdad = input.getAttribute('data-grupo-edad');
+            const sexo = input.getAttribute('data-sexo');
+            const valor = input.value || '';
+            const key = `${tipoIngreso}_${grupoEdad}_${sexo}`;
+            
+            datosMatriculaPorSemestre[semestreActual][key] = valor;
+        });
+        
+        console.log(`💾 Datos guardados para semestre ${semestreActual}:`, datosMatriculaPorSemestre[semestreActual]);
+    }
+
+    // Función para restaurar datos del semestre seleccionado
+    function restaurarDatosSemestre(semestreNum) {
+        const datosDelSemestre = datosMatriculaPorSemestre[semestreNum] || {};
+        const tieneDatosGuardados = Object.keys(datosDelSemestre).length > 0;
+        const inputs = document.querySelectorAll('input.input-matricula-nueva');
+        
+        console.log(`🔄 Restaurando semestre ${semestreNum}: ${tieneDatosGuardados ? 'Tiene datos guardados' : 'Sin datos guardados - conservando valores del SP'}`);
+        
+        inputs.forEach(input => {
+            const tipoIngreso = input.getAttribute('data-tipo-ingreso');
+            const grupoEdad = input.getAttribute('data-grupo-edad');
+            const sexo = input.getAttribute('data-sexo');
+            const key = `${tipoIngreso}_${grupoEdad}_${sexo}`;
+            
+            if (datosDelSemestre[key] !== undefined) {
+                // Si hay datos guardados, restaurarlos
+                input.value = datosDelSemestre[key];
+            } else if (tieneDatosGuardados) {
+                // Solo limpiar si había datos guardados pero esta clave no existe
+                // (significa que el usuario lo dejó vacío intencionalmente)
+                input.value = '';
+            }
+            // Si NO hay datos guardados, NO hacer nada (conservar valores del SP)
+        });
+        
+        console.log(`✅ Datos restaurados para semestre ${semestreNum}:`, Object.keys(datosDelSemestre).length, 'campos');
+        
+        // Recalcular totales después de restaurar
+        calcularTotales();
+        
+        // Ajustar inputs habilitados/inhabilitados según reglas de semestres
+        updateInputsBySemestre(semestreNum);
     }
 
     // Función para seleccionar semestre
     function seleccionarSemestre(semestreNum) {
+        // Guardar datos del semestre actual antes de cambiar
+        guardarDatosSemestreActual();
+        
         // Actualizar tabs activas
         const tabs = document.querySelectorAll('.semestre-tab');
         tabs.forEach(tab => {
@@ -699,20 +1498,77 @@
         cargarDatosExistentes();
     }
 
+    // Función que habilita/inhabilita inputs según el semestre seleccionado
+    // Regla: Si Semestre 1 -> bloquear 'Reingreso' (tipo id = 2)
+    //       Si Semestre != 1 -> bloquear 'Nuevo Ingreso' (tipo id = 1)
+    function updateInputsBySemestre(semestreNum) {
+        const inputs = document.querySelectorAll('input.input-matricula-nueva');
+        inputs.forEach(input => {
+            const tipo = input.getAttribute('data-tipo-ingreso');
+            if (!tipo) return;
+
+            let shouldDisable = false;
+            let tooltipMessage = '';
+
+            if (parseInt(semestreNum) === 1) {
+                // Bloquear Reingreso (tipo 2) en semestre 1
+                if (tipo === '2') {
+                    shouldDisable = true;
+                    tooltipMessage = 'Reingreso no aplica en Semestre 1';
+                }
+            } else {
+                // En cualquier otro semestre, bloquear Nuevo Ingreso (tipo 1)
+                if (tipo === '1') {
+                    shouldDisable = true;
+                    tooltipMessage = `Nuevo Ingreso no aplica en Semestre ${semestreNum}`;
+                }
+            }
+
+            if (shouldDisable) {
+                input.disabled = true;
+                input.classList.add('input-disabled');
+                input.title = tooltipMessage;
+                input.value = ''; // Limpiar valor si se deshabilita
+                
+                // Agregar indicador visual al contenedor padre
+                const container = input.closest('.matricula-box');
+                if (container) {
+                    container.classList.add('input-container-disabled');
+                    container.setAttribute('data-tooltip', tooltipMessage);
+                }
+            } else {
+                input.disabled = false;
+                input.classList.remove('input-disabled');
+                input.title = '';
+                
+                // Remover indicador visual del contenedor padre
+                const container = input.closest('.matricula-box');
+                if (container) {
+                    container.classList.remove('input-container-disabled');
+                    container.removeAttribute('data-tooltip');
+                }
+            }
+        });
+        
+        console.log(`🚫 Inputs actualizados para Semestre ${semestreNum}: ${document.querySelectorAll('.input-disabled').length} deshabilitados`);
+    }
+
     function guardarMatricula() {
-        // Validar que al menos un campo tenga datos
+        // Validar que al menos un campo tenga datos (ahora aceptando 0)
         const inputs = document.querySelectorAll('input.input-matricula-nueva');
         let hasData = false;
         
         for (let input of inputs) {
-            if (parseInt(input.value) > 0) {
+            // Aceptar cualquier valor numérico válido (incluyendo 0)
+            const valor = parseInt(input.value);
+            if (!isNaN(valor) && valor >= 0) {
                 hasData = true;
                 break;
             }
         }
         
         if (!hasData) {
-            alert('⚠️ Por favor, ingrese al menos un valor mayor a 0 antes de guardar.');
+            alert('⚠️ Por favor, ingrese datos antes de guardar.');
             return;
         }
 
@@ -728,6 +1584,10 @@
             return;
         }
 
+        // Obtener valor de Total Grupos
+        const totalGruposInput = document.getElementById('input-total-grupos');
+        const totalGrupos = totalGruposInput ? parseInt(totalGruposInput.value) || 0 : 0;
+        
         // Recopilar todos los datos del formulario
         const data = {
             periodo: periodo,
@@ -735,24 +1595,39 @@
             semestre: semestre,
             modalidad: modalidad,
             turno: turno,
+            total_grupos: totalGrupos,
             datos_matricula: {}
         };
 
-        // Obtener datos de cada input
+        // Obtener datos solo de inputs válidos (no deshabilitados y con datos reales)
         inputs.forEach(input => {
-            const tipoIngreso = input.getAttribute('data-tipo-ingreso');
-            const grupoEdad = input.getAttribute('data-grupo-edad');
-            const sexo = input.getAttribute('data-sexo');
-            const valor = parseInt(input.value) || 0;
-            
-            if (valor > 0) {
-                const key = `${tipoIngreso}_${grupoEdad}_${sexo}`;
-                data.datos_matricula[key] = {
-                    tipo_ingreso: tipoIngreso,
-                    grupo_edad: grupoEdad,
-                    sexo: sexo,
-                    matricula: valor
-                };
+            // Solo procesar si el input NO está deshabilitado
+            if (!input.disabled) {
+                const tipoIngreso = input.getAttribute('data-tipo-ingreso');
+                const grupoEdad = input.getAttribute('data-grupo-edad');
+                const sexo = input.getAttribute('data-sexo');
+                const inputValue = input.value ? input.value.trim() : '';
+                
+                // Solo enviar si:
+                // 1. El usuario realmente puso un valor (incluyendo '0')
+                // 2. O fue auto-rellenado por el botón
+                const isAutoFilled = input.hasAttribute('data-auto-filled');
+                const hasUserValue = inputValue !== '';
+                
+                if (hasUserValue || isAutoFilled) {
+                    const valor = parseInt(inputValue) || 0;
+                    
+                    if (valor >= 0) {
+                        const key = `${tipoIngreso}_${grupoEdad}_${sexo}`;
+                        data.datos_matricula[key] = {
+                            tipo_ingreso: tipoIngreso,
+                            grupo_edad: grupoEdad,
+                            sexo: sexo,
+                            matricula: valor,
+                            salones: totalGrupos
+                        };
+                    }
+                }
             }
         });
 
@@ -790,9 +1665,67 @@
         });
     }
 
+    function scrollToVisibleInput(event) {
+        const input = event.target;
+        const container = document.querySelector('.tabla-matricula-completa tbody');
+        
+        if (!container || !input) return;
+        
+        // Agregar un pequeño retraso para que el foco se establezca completamente
+        setTimeout(() => {
+            // Obtener la fila que contiene el input
+            const row = input.closest('tr');
+            if (!row) return;
+            
+            // Calcular la posición de la fila dentro del contenedor
+            const rowRect = row.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            
+            // Posición relativa de la fila dentro del contenedor scrolleable
+            const rowTop = rowRect.top - containerRect.top + container.scrollTop;
+            const rowHeight = rowRect.height;
+            
+            // Altura útil del contenedor (descontando espacio para totales)
+            const containerHeight = container.clientHeight;
+            const reservedSpace = 80; // Espacio para totales y margen
+            const usableHeight = containerHeight - reservedSpace;
+            
+            // Centrar la fila en el área visible
+            const targetScrollTop = rowTop - (usableHeight / 2) + (rowHeight / 2);
+            
+            // Aplicar scroll suave hacia la posición calculada
+            container.scrollTo({
+                top: Math.max(0, targetScrollTop), // No permitir scroll negativo
+                behavior: 'smooth'
+            });
+            
+            // Resaltar temporalmente el input para que sea más visible
+            input.style.boxShadow = '0 0 10px 3px rgba(110, 3, 67, 0.5)';
+            input.style.transform = 'scale(1.05)';
+            
+            // Quitar el resaltado después de 1 segundo
+            setTimeout(() => {
+                input.style.boxShadow = '';
+                input.style.transform = '';
+            }, 1000);
+            
+        }, 10); // Pequeño retraso para asegurar que el foco esté establecido
+    }
+
     function limpiarFormulario() {
         const inputs = document.querySelectorAll('input.input-matricula-nueva');
-        inputs.forEach(input => input.value = '0');
+        inputs.forEach(input => {
+            input.value = ' ';
+            // Quitar marcador de auto-rellenado
+            input.removeAttribute('data-auto-filled');
+        });
+        
+        // Limpiar también el input de Total Grupos
+        const totalGruposInput = document.getElementById('input-total-grupos');
+        if (totalGruposInput) {
+            totalGruposInput.value = '';
+        }
+        
         calcularTotales(); // Recalcular totales después de limpiar
     }
 
@@ -806,11 +1739,10 @@
             generarPestanasSemestres(maxSem);
             
             // Actualizar pestañas cuando cambie el programa
+            // NOTA: Las pestañas se regenerarán dinámicamente cuando lleguen los datos del SP
             programaEl.addEventListener('change', function() {
-                const opt = this.selectedOptions[0];
-                const maxSem = parseInt(opt?.getAttribute('data-max-semestre')) || 5;
-                generarPestanasSemestres(maxSem);
-                seleccionarSemestre(1); // Resetear a semestre 1
+                console.log('🔄 Programa cambiado, los datos del SP determinarán los semestres disponibles');
+                // NO regenerar pestañas aquí - se hará en renderMatriculaFromSP con datos del SP
             });
         }
         
@@ -827,7 +1759,28 @@
         filtros.forEach(filtroId => {
             const elemento = document.getElementById(filtroId);
             if (elemento) {
-                elemento.addEventListener('change', cargarDatosExistentes);
+                elemento.addEventListener('change', function() {
+                    // Limpiar datos guardados cuando cambie programa o modalidad
+                    console.log(`🔄 Cambió ${filtroId}, limpiando datos guardados`);
+                    datosMatriculaPorSemestre = {};
+                    
+                    // Limpiar atributos data-auto-filled de todos los inputs
+                    const inputs = document.querySelectorAll('input.input-matricula-nueva');
+                    inputs.forEach(input => {
+                        input.removeAttribute('data-auto-filled');
+                    });
+                    
+                    // Limpiar también el input de Total Grupos
+                    const totalGruposInput = document.getElementById('input-total-grupos');
+                    if (totalGruposInput) {
+                        totalGruposInput.value = '';
+                    }
+                    
+                    console.log('🗑️ Datos de matrícula, Total Grupos y marcadores auto-filled limpiados por cambio de contexto');
+                    
+                    // Cargar nuevos datos
+                    cargarDatosExistentes();
+                });
             }
         });
 
@@ -839,6 +1792,323 @@
         
         // Calcular totales iniciales
         calcularTotales();
+    });
+
+    // Función para validar campos vacíos
+    function validarCamposVacios() {
+        const inputs = document.querySelectorAll('.input-matricula-nueva');
+        let camposVacios = 0;
+        
+        inputs.forEach(input => {
+            if (!input.value || input.value.trim() === '') {
+                camposVacios++;
+            }
+        });
+        
+        if (camposVacios > 0) {
+            if (confirm(`Se detectaron ${camposVacios} campos vacíos. ¿Desea llenarlos con ceros?`)) {
+                inputs.forEach(input => {
+                    if (!input.value || input.value.trim() === '') {
+                        input.value = '0';
+                        // Marcar como auto-rellenado
+                        input.setAttribute('data-auto-filled', 'true');
+                    }
+                });
+                calcularTotales();
+                alert('Los campos vacíos se han llenado con ceros.');
+            }
+        } else {
+            alert('✓ Todos los campos están completos.');
+        }
+    }
+
+    // Función para validar y finalizar la captura del semestre actual
+    async function validarCapturaSemestre() {
+        console.log('🔍 === VALIDANDO CAPTURA DEL SEMESTRE ===');
+        
+        // Obtener el semestre actual
+        const semestreActual = parseInt(document.getElementById('semestre').value);
+        const semestreNombre = semestresMap[semestreActual] || `Semestre ${semestreActual}`;
+        
+        // Obtener todos los inputs
+        const inputs = document.querySelectorAll('input.input-matricula-nueva');
+        
+        // PASO 1: Rellenar campos vacíos con '0'
+        let camposRellenados = 0;
+        inputs.forEach(input => {
+            if (!input.value || input.value.trim() === '') {
+                input.value = '0';
+                // Marcar como auto-rellenado
+                input.setAttribute('data-auto-filled', 'true');
+                camposRellenados++;
+            }
+        });
+        
+        if (camposRellenados > 0) {
+            console.log(`📝 Se rellenaron ${camposRellenados} campos vacíos con '0'`);
+        }
+        
+        // PASO 2: Contar datos (ahora incluyendo los 0)
+        let totalDatos = 0;
+        let camposConDatos = 0;
+        let camposConCero = 0;
+        
+        inputs.forEach(input => {
+            const valor = parseInt(input.value) || 0;
+            totalDatos += valor;
+            
+            if (valor > 0) {
+                camposConDatos++;
+            } else if (valor === 0) {
+                camposConCero++;
+            }
+        });
+        
+        console.log(`📊 Estadísticas:`);
+        console.log(`   - Campos con datos (>0): ${camposConDatos}`);
+        console.log(`   - Campos en cero: ${camposConCero}`);
+        console.log(`   - Total de estudiantes: ${totalDatos}`);
+        console.log(`   - Campos rellenados automáticamente: ${camposRellenados}`);
+        
+        // PASO 3: Confirmar con el usuario
+        let mensajeConfirmacion = `¿Desea validar y finalizar la captura del ${semestreNombre}?\n\n`;
+        mensajeConfirmacion += `📊 Campos con datos: ${camposConDatos}\n`;
+        mensajeConfirmacion += `📈 Total de estudiantes: ${totalDatos}\n`;
+        
+        if (camposRellenados > 0) {
+            mensajeConfirmacion += `\n✏️ Se rellenaron ${camposRellenados} campos vacíos con '0'\n`;
+        }
+        
+        mensajeConfirmacion += `\n⚠️ Esta acción:\n`;
+        mensajeConfirmacion += `• Guardará todos los datos en la base de datos (incluyendo ceros)\n`;
+        mensajeConfirmacion += `• Marcará el semestre como COMPLETADO (🟢)\n`;
+        mensajeConfirmacion += `• Registrará la validación en bitácora\n\n`;
+        mensajeConfirmacion += `¿Continuar?`;
+        
+        const confirmar = confirm(mensajeConfirmacion);
+        
+        if (!confirmar) {
+            console.log('❌ Usuario canceló la validación');
+            return;
+        }
+        
+        // PASO 4: Recalcular totales con los nuevos valores
+        calcularTotales();
+        
+        // Obtener parámetros antes de guardar
+        const periodo = document.getElementById('periodo').value;
+        const programa = document.getElementById('programa').value;
+        const modalidad = document.getElementById('modalidad').value;
+        const semestre = document.getElementById('semestre').value;
+        const turno = document.getElementById('turno').value;
+        
+        if (!periodo || !programa || !modalidad || !semestre || !turno) {
+            alert('⚠️ Por favor, complete todos los filtros antes de validar.');
+            return;
+        }
+        
+        // Mostrar indicador de carga
+        const btnValidar = event.target;
+        const textoOriginal = btnValidar.textContent;
+        btnValidar.textContent = '⏳ Guardando datos...';
+        btnValidar.disabled = true;
+        
+        try {
+            // PASO 5: PRIMERO guardar TODOS los datos en la base de datos
+            console.log('💾 === GUARDANDO DATOS EN LA BASE DE DATOS ===');
+            
+            // Obtener valor de Total Grupos
+            const totalGruposInput = document.getElementById('input-total-grupos');
+            const totalGrupos = totalGruposInput ? parseInt(totalGruposInput.value) || 0 : 0;
+            
+            // Preparar datos para guardar (igual que en guardarMatricula)
+            const data = {
+                periodo: periodo,
+                programa: programa,
+                semestre: semestre,
+                modalidad: modalidad,
+                turno: turno,
+                total_grupos: totalGrupos,
+                datos_matricula: {}
+            };
+            
+            // Recopilar datos solo de inputs válidos (no deshabilitados y con datos reales)
+            inputs.forEach(input => {
+                // Solo procesar si el input NO está deshabilitado
+                if (!input.disabled) {
+                    const tipoIngreso = input.getAttribute('data-tipo-ingreso');
+                    const grupoEdad = input.getAttribute('data-grupo-edad');
+                    const sexo = input.getAttribute('data-sexo');
+                    const inputValue = input.value ? input.value.trim() : '';
+                    
+                    // Solo enviar si:
+                    // 1. El usuario realmente puso un valor (incluyendo '0')
+                    // 2. O fue auto-rellenado por el botón
+                    const isAutoFilled = input.hasAttribute('data-auto-filled');
+                    const hasUserValue = inputValue !== '';
+                    
+                    if (hasUserValue || isAutoFilled) {
+                        const valor = parseInt(inputValue) || 0;
+                        
+                        if (valor >= 0) {
+                            const key = `${tipoIngreso}_${grupoEdad}_${sexo}`;
+                            data.datos_matricula[key] = {
+                                tipo_ingreso: tipoIngreso,
+                                grupo_edad: grupoEdad,
+                                sexo: sexo,
+                                matricula: valor,
+                                salones: totalGrupos
+                            };
+                        }
+                    }
+                }
+            });
+            
+            console.log(`📤 Enviando ${Object.keys(data.datos_matricula).length} registros a la base de datos...`);
+            
+            // Guardar datos en Temp_Matricula
+            const saveResponse = await fetch('/matricula/guardar_captura_completa', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const saveResult = await saveResponse.json();
+            console.log('💾 Respuesta del guardado:', saveResult);
+            
+            if (saveResult.error) {
+                console.error('❌ Error al guardar datos:', saveResult.error);
+                alert(`❌ Error al guardar los datos:\n\n${saveResult.error}\n\nNo se puede continuar con la validación.`);
+                return;
+            }
+            
+            console.log('✅ Datos guardados exitosamente en Temp_Matricula');
+            console.log(`📊 Registros guardados: ${saveResult.registros_guardados || 'N/A'}`);
+            
+            // PASO 5.1: Actualizar Matricula desde Temp_Matricula
+            console.log('🔄 === ACTUALIZANDO TABLA MATRICULA ===');
+            btnValidar.textContent = '⏳ Actualizando matrícula...';
+            
+            const updateResponse = await fetch('/matricula/actualizar_matricula', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            });
+            
+            const updateResult = await updateResponse.json();
+            console.log('🔄 Respuesta de actualización:', updateResult);
+            
+            if (updateResult.error) {
+                console.error('❌ Error al actualizar Matricula:', updateResult.error);
+                alert(`❌ Error al actualizar la tabla Matricula:\n\n${updateResult.error}\n\nLos datos están en Temp_Matricula pero no se movieron a Matricula.`);
+                return;
+            }
+            
+            console.log('✅ Tabla Matricula actualizada exitosamente');
+            console.log(`📊 ${updateResult.mensaje || 'Actualización completada'}`);
+            
+            // Pequeña pausa para asegurar que se completó la transacción
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // PASO 6: Ahora SÍ validar y finalizar (solo actualiza semáforo)
+            console.log('🚀 === VALIDANDO Y FINALIZANDO CAPTURA ===');
+            btnValidar.textContent = '⏳ Validando y finalizando...';
+            
+            const response = await fetch('/matricula/validar_captura_semestre', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    periodo: periodo,
+                    programa: programa,
+                    modalidad: modalidad,
+                    semestre: semestre,
+                    turno: turno
+                })
+            });
+            
+            const resultado = await response.json();
+            console.log('📥 Respuesta del backend:', resultado);
+            
+            if (resultado.error) {
+                console.error('❌ Error del backend:', resultado.error);
+                alert(`❌ Error al validar la captura:\n\n${resultado.error}`);
+                return;
+            }
+            
+            if (resultado.success) {
+                console.log('✅ Validación exitosa!');
+                
+                // Actualizar estado del semáforo usando el valor verificado del backend
+                const estadoVerificado = resultado.estado_semaforo || 3;
+                
+                // Usar la función de persistencia para marcar el semestre
+                marcarSemestreComoValidado(semestreActual);
+                console.log(`🚦 Semestre ${semestreActual} actualizado con estado verificado: ${estadoVerificado} (guardado en memoria y localStorage)`);
+                
+                if (estadoVerificado === 3) {
+                    console.log('🟢 Confirmación: Semestre marcado como COMPLETADO en la base de datos');
+                } else {
+                    console.warn(`⚠️ Advertencia: Estado del semestre es ${estadoVerificado}, no 3 (completado)`);
+                }
+                
+                // Actualizar colores de pestañas
+                actualizarColoresPestanas();
+                
+                // Mensaje de éxito personalizado según el estado
+                let mensajeEstado = '';
+                if (estadoVerificado === 3) {
+                    mensajeEstado = '🟢 El semestre ha sido marcado como COMPLETADO';
+                } else if (estadoVerificado === 2) {
+                    mensajeEstado = '🟡 El semestre tiene datos parciales';
+                } else {
+                    mensajeEstado = `Estado del semestre: ${estadoVerificado}`;
+                }
+                
+                alert(
+                    `✅ ${resultado.mensaje || 'Captura validada exitosamente'}\n\n` +
+                    `${mensajeEstado}\n` +
+                    `📊 Total de estudiantes: ${totalDatos}\n\n` +
+                    `Los datos han sido guardados en la base de datos.`
+                );
+                
+                // Si el SP devolvió datos actualizados, reprocesarlos
+                if (resultado.rows && resultado.rows.length > 0) {
+                    console.log('🔄 Procesando datos actualizados del SP...');
+                    procesarEstadosSemaforoDelSP(resultado.rows);
+                    procesarYGuardarDatosPorSemestre(resultado.rows);
+                    actualizarColoresPestanas();
+                }
+                
+                console.log('✅ Validación completada exitosamente');
+            } else {
+                console.warn('⚠️ Respuesta inesperada del backend');
+                alert('⚠️ No se pudo confirmar la validación. Por favor, verifique los datos.');
+            }
+            
+        } catch (error) {
+            console.error('❌ Error en la petición:', error);
+            alert(`❌ Error al validar la captura:\n\n${error.message}`);
+        } finally {
+            // Restaurar botón
+            btnValidar.textContent = textoOriginal;
+            btnValidar.disabled = false;
+        }
+    }
+
+    // Agregar validación solo números en inputs
+    document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('input', function(e) {
+            if (e.target.classList.contains('input-matricula-nueva')) {
+                // Solo permitir números
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            }
+        });
     });
 </script>
 <!-- Panel debug opcional para ver filas crudas del SP -->
@@ -867,7 +2137,66 @@
         html += '</tbody></table>';
         content.innerHTML = html;
     }
-</script>
-{% endblock %}
 
+    // Función para actualizar la matrícula definitiva usando el SP
+    function actualizarMatricula() {
+        // Confirmar la acción
+        if (!confirm('🔄 ¿Está seguro de que desea actualizar la matrícula definitiva?\n\n⚠️ Esta acción:\n• Transferirá todos los datos de la tabla temporal a la matrícula oficial\n• Limpiará la tabla temporal\n• No se puede deshacer\n\n¿Continuar?')) {
+            return;
+        }
+
+        const updateBtn = document.querySelector('.btn-success');
+        const originalText = updateBtn.textContent;
+        updateBtn.textContent = '⏳ Actualizando...';
+        updateBtn.disabled = true;
+
+        // Obtener período desde el campo hidden
+        const periodo = document.getElementById('periodo').value;
+
+        fetch('/matricula/actualizar_matricula', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                periodo: periodo
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            console.log('Respuesta del servidor:', data);
+            
+            if (data.warning) {
+                alert(`⚠️ ${data.warning}`);
+                return;
+            }
+            
+            // Mostrar mensaje de éxito detallado
+            let mensaje = `✅ ${data.mensaje}\n\n`;
+            mensaje += `📊 Registros procesados: ${data.registros_procesados}\n`;
+            mensaje += `🧹 Tabla temporal limpiada: ${data.temp_matricula_limpiada ? 'Sí' : 'No'}\n`;
+            mensaje += `👤 Usuario: ${data.usuario}\n`;
+            mensaje += `📅 Período: ${data.periodo}\n`;
+            mensaje += `⏰ Fecha: ${new Date(data.timestamp).toLocaleString()}`;
+            
+            alert(mensaje);
+            
+            // Opcional: Recargar la página o actualizar la vista
+             location.reload();
+        })
+        .catch(error => {
+            console.error('Error al actualizar matrícula:', error);
+            alert(`❌ Error al actualizar la matrícula: ${error.message}`);
+        })
+        .finally(() => {
+            // Restaurar botón
+            updateBtn.textContent = originalText;
+            updateBtn.disabled = false;
+        });
+    }
+</script>
 {% endblock %}
